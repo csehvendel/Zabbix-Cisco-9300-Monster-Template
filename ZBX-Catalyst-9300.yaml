@@ -20,9 +20,8 @@ zabbix_export:
           key: cisco.config.running.last_changed
           delay: 5m
           history: 7d
-          value_type: FLOAT
-          trends: 90d
-          description: 'Raw SysUpTime of last running config change.'
+          trends: '0'
+          units: unixtime
           tags:
             - tag: Monitoring
               value: Configuration
@@ -99,66 +98,6 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: 'CPU Usage'
-        - uuid: 52b3c4d5e6f74809a1b2c3d4e5f67891
-          name: 'Device Tracking: Active Entries'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.824.1.1.4.0
-          key: cisco.device_tracking.entries.active
-          delay: 5m
-          history: 7d
-          value_type: FLOAT
-          trends: 90d
-          description: 'Az adatbázisban található aktív bejegyzések száma.'
-          tags:
-            - tag: Monitoring
-              value: 'Device Tracking'
-        - uuid: a1b2c3d4e5f647f890a1b2c3d4e5f679
-          name: 'Device Tracking: Conflict Entries'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.824.1.1.5.0
-          key: cisco.device_tracking.entries.conflict
-          history: 7d
-          value_type: FLOAT
-          trends: 90d
-          description: 'Konfliktusos állapotban lévő bejegyzések száma (IP-MAC conflict).'
-          tags:
-            - tag: Monitoring
-              value: 'Device Tracking'
-          triggers:
-            - uuid: f2e3d4c5b6a7489091234567890abcde
-              expression: 'last(/Cisco Catalyst 9300 Switch/cisco.device_tracking.entries.conflict)>0'
-              name: 'Device Tracking: IP Conflict detected'
-              priority: AVERAGE
-              description: 'IP cím konfliktus észlelhető! Az ARP és a Device Tracking adatbázis eltérést mutat.'
-              manual_close: 'YES'
-              tags:
-                - tag: Monitoring
-                  value: 'Device Tracking'
-        - uuid: 8e3c4d5b6a7144e98f3a1b2c3d4e5f67
-          name: 'Device Tracking: Global Status'
-          type: SNMP_AGENT
-          snmp_oid: 1.3.6.1.4.1.9.9.824.1.1.1.0
-          key: cisco.device_tracking.status
-          delay: 5m
-          history: 7d
-          value_type: FLOAT
-          trends: 90d
-          description: 'Globális IP Device Tracking állapot (1=Enabled).'
-          valuemap:
-            name: 'Cisco Device Tracking Status'
-          tags:
-            - tag: Monitoring
-              value: 'Device Tracking'
-          triggers:
-            - uuid: d1e2f3a4b5c64789801234567890abcd
-              expression: 'last(/Cisco Catalyst 9300 Switch/cisco.device_tracking.status)<>1'
-              name: 'Device Tracking: Feature is DISABLED'
-              priority: WARNING
-              description: 'Az IP Device Tracking ki van kapcsolva! A hálózatbiztonsági funkciók nem működnek megfelelően.'
-              manual_close: 'YES'
-              tags:
-                - tag: Monitoring
-                  value: 'Device Tracking'
         - uuid: df87342199b5442781a3d6f0c2e1f4a9
           name: 'DHCP Snooping: Global Status'
           type: SNMP_AGENT
@@ -254,6 +193,130 @@ zabbix_export:
                 - \1
           master_item:
             key: system.location
+        - uuid: 70980b4788e049e3afb3929e6f016887
+          name: 'Net: ARP Entries Count'
+          type: DEPENDENT
+          key: cisco.net.arp.count
+          history: 7d
+          value_type: FLOAT
+          description: 'Az ARP táblában lévő bejegyzések száma.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.length()
+          master_item:
+            key: cisco.net.arp.walk
+          tags:
+            - tag: Monitoring
+              value: ARP
+        - uuid: 82469f5c072d4d959852d576bda8b9dc
+          name: 'Net: ARP Table Walk (IPv4)'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.2.1.4.22.1.2]'
+          key: cisco.net.arp.walk
+          history: '0'
+          value_type: TEXT
+          description: 'A teljes ARP tábla letöltése és JSON konverziója.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Nyers SNMP szoveg atalakitasa JSON listava
+                  var lines = value.split(/\r?\n/);
+                  var output = [];
+                  for (var i = 0; i < lines.length; i++) {
+                      if (lines[i].trim() !== "") {
+                          output.push(lines[i]);
+                      }
+                  }
+                  return JSON.stringify(output);
+          tags:
+            - tag: Monitoring
+              value: ARP
+        - uuid: 2003705539644beba1ea36b925e9d9a1
+          name: 'Net: IP Conflict Monitor'
+          type: DEPENDENT
+          key: cisco.net.ip.conflict
+          history: 7d
+          value_type: TEXT
+          description: 'Elemzi az adatbázist IP ütközésekért. (IPv6 Link-Local fe80:: címeket figyelmen kívül hagyja!)'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var ipMap = {};
+                  var conflicts = [];
+                  
+                  for (var i = 0; i < data.length; i++) {
+                      var entry = data[i];
+                      var ip = entry.ip;
+                      var mac = entry.mac;
+                  
+                      // 1. Csak ervenyes adat
+                      // 2. 0.0.0.0-t kihagyjuk
+                      // 3. IPv6 Link-Local (fe80:) cimeket kihagyjuk
+                      if (ip && mac && ip !== '0.0.0.0' && ip.toLowerCase().indexOf('fe80:') !== 0) {
+                          
+                          if (ipMap[ip]) {
+                              // Mar lattuk ezt az IP-t. Ugyanaz a MAC?
+                              if (ipMap[ip] !== mac) {
+                                  // ELTERO MAC! UTKOZES!
+                                  conflicts.push(ip + ' [' + ipMap[ip] + ' vs ' + mac + ']');
+                              }
+                          } else {
+                              // Eloszor latjuk ezt az IP-t, elmentjuk a MAC-et
+                              ipMap[ip] = mac;
+                          }
+                      }
+                  }
+                  
+                  if (conflicts.length > 0) {
+                      return "CONFLICT: " + conflicts.join(", ");
+                  }
+                  return "OK";
+          master_item:
+            key: 'ssh.run[cisco.ipdt]'
+          tags:
+            - tag: Monitoring
+              value: 'IP Conflict'
+          triggers:
+            - uuid: 0c0669f906e346ccafb27a0cdf67ed60
+              expression: 'find(/Cisco Catalyst 9300 Switch/cisco.net.ip.conflict,,"like","CONFLICT")=1'
+              name: 'CRITICAL: IP Conflict detected! {ITEM.VALUE}'
+              priority: HIGH
+              description: 'A rendszer IP ütközést észlelt. Részletek az item értékében.'
+              manual_close: 'YES'
+              tags:
+                - tag: Scope
+                  value: Availability
+        - uuid: '74889694796043448937613583274650'
+          name: 'QoS Discovery Walk (Run hourly)'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.9.9.166.1.7.1.1.1, 1.3.6.1.4.1.9.9.166.1.5.1.1.2]'
+          key: cisco.qos.walk
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          description: 'Nevek és indexek letöltése. (Idézőjel javítással)'
+          tags:
+            - tag: Application
+              value: 'Zabbix Internal'
+        - uuid: 66efe7ff4b31402f9b9b6956f5a2e264
+          name: 'Net: Device Tracking Total Count (SSH)'
+          type: DEPENDENT
+          key: cisco.ssh.ipdt.count
+          history: 7d
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.length()
+          master_item:
+            key: 'ssh.run[cisco.ipdt]'
+          tags:
+            - tag: Monitoring
+              value: Device-Tracking
         - uuid: 73d74571981846b0a8864f7831777265
           name: 'Stack: Number of Members'
           type: SNMP_AGENT
@@ -288,53 +351,6 @@ zabbix_export:
           tags:
             - tag: Monitoring
               value: 'Stack Status'
-        - uuid: 8e3d2a1bc4d54e6fa7b8c9d0e1f2a3b4
-          name: 'Network Device Tracking & Conflict Check'
-          type: SNMP_AGENT
-          snmp_oid: 'walk[1.3.6.1.2.1.4.35.1.4]'
-          key: net.device.tracking.full
-          history: 7d
-          value_type: TEXT
-          preprocessing:
-            - type: SNMP_WALK_TO_JSON
-              parameters:
-                - oid
-                - value
-                - '0'
-                - type
-                - 1.3.6.1.2.1.4.35.1.4
-                - '0'
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  try {
-                      var data = JSON.parse(value);
-                      var ipToMac = {};
-                      var conflicts = [];
-                      data.forEach(function (entry) {
-                          if (!entry || !entry.oid) return;
-                          var parts = entry.oid.split('.');
-                          var isIPv6 = (parts[parts.length - (parts.length > 22 ? 17 : 5)] === "2");
-                          var ipParts = isIPv6 ? parts.slice(-16) : parts.slice(-4);
-                          var ip = isIPv6 ? ipParts.map(function(x) { var h = parseInt(x).toString(16); return h.length === 1 ? '0' + h : h; }).join(':').replace(/((?:00:){1,})00/g, '::') : ipParts.join('.');
-                          var mac = (entry.value || "").replace(/^Hex-STRING:\s*/i, '').trim().toLowerCase().replace(/[:\s-]/g, '');
-                          if (!mac || mac === "000000000000") return;
-                          if (ipToMac[ip] && ipToMac[ip] !== mac) {
-                              conflicts.push(ip + " (MAC1: " + ipToMac[ip] + ", MAC2: " + mac + ")");
-                          }
-                          ipToMac[ip] = mac;
-                      });
-                      return conflicts.length > 0 ? "CRITICAL - Conflict Detected:\n" + conflicts.join('\n') : "OK - No Conflict Detected";
-                  } catch (e) { return "Hiba: " + e.message; }
-          tags:
-            - tag: Monitoring
-              value: 'Device Tracking'
-          triggers:
-            - uuid: f5e4d3c2b1a0498786543210fedcba98
-              expression: 'find(/Cisco Catalyst 9300 Switch/net.device.tracking.full,,"like","CRITICAL")=1'
-              name: 'ARP/NDP Conflict: {HOST.NAME}'
-              priority: HIGH
-              manual_close: 'YES'
         - uuid: e5f6a7b8c9d04411a123817865246900
           name: 'STP: Global topology changes'
           type: SNMP_AGENT
@@ -343,6 +359,77 @@ zabbix_export:
           tags:
             - tag: Monitoring
               value: RPVST
+        - uuid: 550e8400e29b41d4a716446655440003
+          name: 'Service: Web (HTTP) status'
+          type: SIMPLE
+          key: 'net.tcp.service[http]'
+          history: 7d
+          trends: '0'
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: Monitoring
+              value: 'Remote Access'
+        - uuid: 550e8400e29b41d4a716446655440001
+          name: 'Service: SSH status'
+          type: SIMPLE
+          key: 'net.tcp.service[ssh]'
+          history: 7d
+          trends: '0'
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: Monitoring
+              value: 'Remote Access'
+        - uuid: 550e8400e29b41d4a716446655440002
+          name: 'Service: Telnet status'
+          type: SIMPLE
+          key: 'net.tcp.service[telnet]'
+          history: 7d
+          trends: '0'
+          valuemap:
+            name: 'Service state'
+          tags:
+            - tag: Monitoring
+              value: 'Remote Access'
+        - uuid: 847907ca7d114a28a2a2cd62d04abb0c
+          name: 'SSH: Device Tracking Database (CLI)'
+          type: SSH
+          key: 'ssh.run[cisco.ipdt]'
+          history: '0'
+          value_type: TEXT
+          params: 'show device-tracking database | exclude ^$'
+          username: '{$SSH_USER}'
+          password: '{$SSH_PASSWORD}'
+          description: 'SSH-n keresztül olvassa ki a ''show device-tracking database'' kimenetét, és JSON formátummá alakítja.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lines = value.split(/\n/);
+                  var result = [];
+                  // Fejlec sorok atugrasa es adat kinyerese
+                  for (var i = 0; i < lines.length; i++) {
+                      var line = lines[i].trim();
+                      // Ha a sor egy tipussal kezdodik (L, ARP, ND, DH4, DH6) es van benne MAC cim formatus
+                      if (line.match(/^(L|ARP|ND|DH4|DH6)\s+/)) {
+                          var parts = line.split(/\s+/);
+                          if (parts.length >= 5) {
+                              result.push({
+                                  'type': parts[0],
+                                  'ip': parts[1],
+                                  'mac': parts[2],
+                                  'interface': parts[3],
+                                  'vlan': parts[4],
+                                  'state': parts[6] || 'UNKNOWN'
+                              });
+                          }
+                      }
+                  }
+                  return JSON.stringify(result);
+          tags:
+            - tag: Monitoring
+              value: Device-Tracking
         - uuid: e98c7b6a5d4e4f3c82b1a0b9c8d7e6f5
           name: 'Inventory: MAC Address'
           type: SNMP_AGENT
@@ -353,7 +440,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: MACADDRESS_A
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
         - uuid: b65f4e3d2c1b4a9eb8d7c6b5a4938271
           name: 'Inventory: Model (Type)'
@@ -365,7 +452,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: TYPE
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
         - uuid: d87b6a5c4d3e4f2b91a0b9c8d7e6f5a4
           name: 'Inventory: Serial Number'
@@ -377,7 +464,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: SERIALNO_A
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
         - uuid: 93847e2a1c3b4f5d8a9b0c1d2e3f4a5b
           name: 'System location'
@@ -389,7 +476,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: LOCATION
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
         - uuid: a54e3d2c1b0a4f9ea8d7c6b5a4938271
           name: 'Inventory: Name'
@@ -401,7 +488,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: NAME
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
         - uuid: c76a5b4c3d2e4f1a8b9c8d7e6f5a4b3c
           name: 'Inventory: OS Version'
@@ -413,7 +500,7 @@ zabbix_export:
           value_type: CHAR
           inventory_link: OS
           tags:
-            - tag: Application
+            - tag: 'Master Switch'
               value: Inventory
       discovery_rules:
         - uuid: 9a8b7c6d5e4f4321a0b1c2d3e4f5a6b7
@@ -735,6 +822,78 @@ zabbix_export:
                   tags:
                     - tag: Monitoring
                       value: Storage
+        - uuid: '05e83921822849889445101672322588'
+          name: 'Active Ports Discovery (Device Tracking v3)'
+          type: DEPENDENT
+          key: cisco.ipdt.discovery.v3
+          description: 'Portok felfedezése IP Monitorozáshoz.'
+          item_prototypes:
+            - uuid: 423233306663471ca040778895055010
+              name: 'Interface {#IFNAME}: Neighbor IP Address(es)'
+              type: DEPENDENT
+              key: 'cisco.port.ip.monitor.v3[{#IFNAME}]'
+              history: 7d
+              value_type: TEXT
+              description: 'A porton lévő eszközök IP címei.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var data = JSON.parse(value);
+                          var targetIf = "{#IFNAME}";
+                          var v4 = [];
+                          var v6 = [];
+                      
+                          for (var i = 0; i < data.length; i++) {
+                              if (data[i].interface === targetIf) {
+                                  if (['L', 'ARP', 'DH4'].indexOf(data[i].type) !== -1) {
+                                       if (v4.indexOf(data[i].ip) === -1) v4.push(data[i].ip);
+                                  }
+                                  if (['ND', 'DH6'].indexOf(data[i].type) !== -1) {
+                                       if (v6.indexOf(data[i].ip) === -1) v6.push(data[i].ip);
+                                  }
+                              }
+                          }
+                      
+                          var res = [];
+                          if (v4.length) res.push("IPv4: " + v4.join(', '));
+                          if (v6.length) res.push("IPv6: " + v6.join(', '));
+                      
+                          return res.length ? res.join(' | ') : 'No IP detected';
+                      } catch(e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'ssh.run[cisco.ipdt]'
+              tags:
+                - tag: Monitoring
+                  value: 'IP Monitor'
+          master_item:
+            key: 'ssh.run[cisco.ipdt]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  try {
+                      var data = JSON.parse(value);
+                      var ifaces = {};
+                      var result = [];
+                  
+                      for (var i = 0; i < data.length; i++) {
+                          var ifName = data[i].interface;
+                          if (ifName && ifName !== '-' && !ifaces[ifName]) {
+                              ifaces[ifName] = 1;
+                              result.push({'{#IFNAME}': ifName});
+                          }
+                      }
+                      return JSON.stringify(result);
+                  } catch (e) {
+                      return '[]';
+                  }
         - uuid: '85785087307049449338043685355933'
           name: 'IP SLA Discovery'
           type: SNMP_AGENT
@@ -880,6 +1039,106 @@ zabbix_export:
                   tags:
                     - tag: Monitoring
                       value: 'Memory Usage'
+        - uuid: 9218374650194382a173465019283746
+          name: 'Cisco QoS Discovery'
+          type: DEPENDENT
+          key: cisco.qos.discovery
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#QOSNAME}'
+                value: '.*(system-cpp-police|AutoQos|class-default).*'
+          item_prototypes:
+            - uuid: a1b2c3d4e5f647898a9b0c1d2e3f4a5b
+              name: 'Neighbors: {#IFNAME}'
+              type: DEPENDENT
+              key: 'cisco.port.devices.v2[{#IFNAME}]'
+              history: 7d
+              value_type: TEXT
+              description: 'A porton lévő eszközök IP címei.'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      try {
+                          var data = JSON.parse(value);
+                          var targetIf = "{#IFNAME}";
+                          var v4 = [];
+                          var v6 = [];
+                      
+                          for (var i = 0; i < data.length; i++) {
+                              if (data[i].interface === targetIf) {
+                                  if (['L', 'ARP', 'DH4'].indexOf(data[i].type) !== -1) {
+                                       if (v4.indexOf(data[i].ip) === -1) v4.push(data[i].ip);
+                                  }
+                                  if (['ND', 'DH6'].indexOf(data[i].type) !== -1) {
+                                       if (v6.indexOf(data[i].ip) === -1) v6.push(data[i].ip);
+                                  }
+                              }
+                          }
+                      
+                          var res = [];
+                          if (v4.length) res.push("IPv4: " + v4.join(', '));
+                          if (v6.length) res.push("IPv6: " + v6.join(', '));
+                      
+                          return res.length ? res.join(' | ') : '';
+                      } catch(e) {
+                          return '';
+                      }
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'ssh.run[cisco.ipdt]'
+              tags:
+                - tag: Monitoring
+                  value: Neighbors
+            - uuid: b1c2d3e4f5a647899b9c0d1e2f3a4b5c
+              name: 'QoS: {#QOSNAME} dropped'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.4.1.9.9.166.1.15.1.1.14.{#SNMPINDEX}'
+              key: 'qos.dropped[{#SNMPINDEX}]'
+              history: 7d
+              units: Bps
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+              tags:
+                - tag: Monitoring
+                  value: QoS
+          master_item:
+            key: cisco.qos.walk
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var input = JSON.parse(value);
+                  var names = {};
+                  var result = [];
+                  
+                  // 1. Nevek kigyujtese es IDEZOJEL TAKARITAS
+                  input.forEach(function(v) {
+                    if (v.oid.indexOf('1.3.6.1.4.1.9.9.166.1.7.1.1.1') !== -1) {
+                      // Remove quotes from start and end
+                      var cleanName = v.value.replace(/^"|"$/g, '');
+                      names[v.oid.split('.').pop()] = cleanName;
+                    }
+                  });
+                  
+                  // 2. Indexek parositasa
+                  input.forEach(function(v) {
+                    if (v.oid.indexOf('1.3.6.1.4.1.9.9.166.1.5.1.1.2') !== -1) {
+                      var parts = v.oid.split('.');
+                      var objIdx = parts[parts.length-2] + '.' + parts[parts.length-1];
+                      var cfgIdx = v.value;
+                      if (names[cfgIdx]) {
+                        result.push({
+                          '{#SNMPINDEX}': objIdx,
+                          '{#QOSNAME}': names[cfgIdx]
+                        });
+                      }
+                    }
+                  });
+                  return JSON.stringify(result);
         - uuid: c5e6f7a8b9c04411a123817865247000
           name: 'Monitoring: Transceiver (SFP) Sensors'
           type: SNMP_AGENT
@@ -1635,6 +1894,13 @@ zabbix_export:
               newvalue: Forwarding
             - value: '6'
               newvalue: Broken
+        - uuid: 550e8400e29b41d4a716446655440005
+          name: 'Service state'
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Up
   triggers:
     - uuid: f9a3c2e1b5d448109637f1a2e4d8c5b0
       expression: 'last(/Cisco Catalyst 9300 Switch/cisco.config.running.last_changed) > last(/Cisco Catalyst 9300 Switch/cisco.config.startup.last_changed)'
@@ -1645,6 +1911,14 @@ zabbix_export:
       tags:
         - tag: Monitoring
           value: Configuration
+    - uuid: 550e8400e29b41d4a716446655440004
+      expression: 'last(/Cisco Catalyst 9300 Switch/net.tcp.service[ssh])=0 and last(/Cisco Catalyst 9300 Switch/net.tcp.service[telnet])=0 and last(/Cisco Catalyst 9300 Switch/net.tcp.service[http])=0'
+      name: 'CRITICAL: Device not accessible (No SSH, Telnet, or Web)'
+      priority: HIGH
+      description: 'Az eszköz egyik menedzsment interfészen (SSH, Telnet, HTTP) sem válaszol.'
+      tags:
+        - tag: Monitoring
+          value: 'Remote Access'
     - uuid: f96f8c054f2c462ab6d2105f27618239
       expression: 'last(/Cisco Catalyst 9300 Switch/cisco.stack.ring.redundant)=2 and last(/Cisco Catalyst 9300 Switch/cisco.stack.member.count)>1'
       name: 'Stack: Ring is not redundant'
