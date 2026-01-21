@@ -123,6 +123,87 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: 'Dhcp Snooping'
+        - uuid: 5a2b3c4d5e6f47a89b0c1d2e3f4a5b6c
+          name: 'Security: Device Tracking Conflict Status'
+          type: DEPENDENT
+          key: cisco.ipdt.conflict.status
+          history: 7d
+          value_type: TEXT
+          description: 'A meglevo IPDT adatbol szamolja ki az IP konfliktusokat (IPv4/IPv6).'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var lines = value.split(/\r?\n/);
+                  var ip_map = {};
+                  var conflicts = [];
+                  
+                  // MAC cim tisztitas
+                  function cleanMac(mac) {
+                      return mac.replace(/[\.\-:]/g, '').toLowerCase();
+                  }
+                  
+                  for (var i = 0; i < lines.length; i++) {
+                      var line = lines[i].trim();
+                      
+                      // 1. Explicit Statusz ellenorzese (DUPLICATE/COLLISION)
+                      if (line.match(/DUPLICATE|COLLISION/i)) {
+                          conflicts.push("Explicit Conflict State found: " + line);
+                      }
+                  
+                      // 2. IP es MAC kinyerese a sorbol
+                      var parts = line.split(/\s+/);
+                      var ip = '';
+                      var mac = '';
+                      
+                      for (var j = 0; j < parts.length; j++) {
+                          var p = parts[j];
+                          // IPv4 regex
+                          if (p.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) ip = p;
+                          // IPv6 regex
+                          else if (p.match(/^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/) && p.length > 2) ip = p;
+                          // MAC regex
+                          else if (p.match(/^[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}\.[0-9a-fA-F]{4}$/)) mac = cleanMac(p);
+                      }
+                  
+                      if (ip && mac) {
+                          if (!ip_map[ip]) {
+                              ip_map[ip] = [];
+                          }
+                          if (ip_map[ip].indexOf(mac) === -1) {
+                              ip_map[ip].push(mac);
+                          }
+                      }
+                  }
+                  
+                  // 3. Konfliktusok keresese
+                  for (var ip in ip_map) {
+                      if (ip_map[ip].length > 1) {
+                          conflicts.push("IP Conflict: " + ip + " is used by multiple MACs: " + ip_map[ip].join(", "));
+                      }
+                  }
+                  
+                  if (conflicts.length > 0) {
+                      return JSON.stringify({ "count": conflicts.length, "details": conflicts.join(" | ") });
+                  } else {
+                      return JSON.stringify({ "count": 0, "details": "No conflicts" });
+                  }
+          master_item:
+            key: 'ssh.run[cisco.ipdt]'
+          tags:
+            - tag: Monitoring
+              value: 'Ip Conflict'
+          triggers:
+            - uuid: 8a9b0c1d2e3f4a5bac7d8e9f0a1b2c3d
+              expression: 'jsonpath(last(/Cisco Catalyst 9300 Switch/cisco.ipdt.conflict.status), "$.count") > 0'
+              name: 'Security: IP Conflict Detected (Device Tracking)'
+              opdata: 'Details: {ITEM.VALUE}'
+              priority: DISASTER
+              description: 'KRITIKUS: IP konfliktus erzekelve a halozatban! Reszletek: {ITEM.VALUE}'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: 'Ip Conflict'
         - uuid: b3c4d5e6f7a849b081d2e3f4a5b6c7d8
           name: 'Inventory: Building'
           type: DEPENDENT
@@ -327,7 +408,7 @@ zabbix_export:
           password: '{$SSH_PASSWORD}'
           description: 'PoE adatgyujtes.'
         - uuid: 1409e93d13b74664b900a1a9d7055576
-          name: 'SSH: QoS Data'
+          name: 'SSH: QoS Raw Data'
           type: SSH
           key: 'ssh.run[cisco.qos]'
           history: '0'
@@ -335,7 +416,10 @@ zabbix_export:
           params: 'show policy-map interface | include Ethernet|Class-map:|drop rate|bytes output'
           username: '{$SSH_USER}'
           password: '{$SSH_PASSWORD}'
-          description: 'QoS adatgyujtes (Interface, Class, Drop rate, Bytes output).'
+          description: 'Nyers QoS adatok letoltese. Ebbol dolgozik a Discovery (Output es Drop is).'
+          tags:
+            - tag: Monitoring
+              value: Qos
         - uuid: 90c6de1f000c4630bb779a72804c8bc9
           name: 'SSH: Stack Power Data'
           type: SSH
@@ -977,96 +1061,143 @@ zabbix_export:
                       if (m) { result.push({ '{#IFNAME}': clean(m[0].split(' ')[0]) }); }
                   }
                   return JSON.stringify(result);
-        - uuid: 4d76459d3bee480fb2383e73fb58b74f
-          name: 'Monitoring: QoS'
+        - uuid: 536098054c0744028616565576752765
+          name: 'QoS Class Discovery'
           type: DEPENDENT
           key: cisco.qos.discovery
+          lifetime: 30d
+          description: 'Interfeszek es Class-map-ek felderitese.'
           item_prototypes:
-            - uuid: b823f61259f349f78c8690c30f37184c
+            - uuid: '29845347658241139806562387532467'
               name: 'Interface {#IFNAME}: QoS {#CLASSNAME} Bytes Output'
               type: DEPENDENT
-              key: 'cisco.qos.bytes[{#IFNAME},{#CLASSNAME}]'
+              key: 'cisco.qos.class.bytes[{#IFNAME},{#CLASSNAME}]'
+              history: 7d
               value_type: FLOAT
+              trends: 90d
               units: B
+              description: 'Kimenovo forgalom (Delta).'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
                     - |
-                      var lines = value.split('\n');
-                      var targetIf = '{#IFNAME}'; var targetClass = '{#CLASSNAME}';
-                      var currIf = '', currClass = '';
-                      function clean(n) { return n.replace('GigabitEthernet', 'Gi').replace('TenGigabitEthernet', 'Te').replace('FastEthernet', 'Fa').trim(); }
+                      var lines = value.split(/\r?\n/);
+                      var target_if = '{#IFNAME}';
+                      var target_class = '{#CLASSNAME}';
+                      var in_target_if = false;
+                      var found_val = '0';
+                      
                       for (var i = 0; i < lines.length; i++) {
-                          var l = lines[i].trim();
-                          if (l.match(/^(GigabitEthernet|TenGigabitEthernet|FastEthernet|Gi|Te|Fa)[0-9\/]+/)) { 
-                              currIf = clean(l.split(' ')[0]); 
+                          var line = lines[i].trim();
+                          
+                          // Interface blokk keresese (biztonsagosabb string match)
+                          if (line.indexOf(target_if) !== -1 && !line.includes("Class-map")) {
+                              in_target_if = true;
+                          } else if (line.match(/(Gi|Te|Fa|Tw)[a-zA-Z]*[0-9\/]+/) && line.indexOf(target_if) === -1 && !line.includes("Class-map")) {
+                              // Ha masik interface jon, kilepunk
+                              in_target_if = false;
                           }
-                          if (l.match(/^Class-map:/)) { currClass = l.split(':')[1].trim().split(' ')[0]; }
-                          // FIX: Allow closing parenthesis ')' after bytes output
-                          if (currIf === targetIf && currClass === targetClass && l.match(/bytes output/)) {
-                              var m = l.match(/bytes output\)?\s+(\d+)/); return m ? m[1] : 0;
+                      
+                          if (in_target_if) {
+                              // Class keresese
+                              if (line.includes('Class-map:') && line.includes(target_class)) {
+                                  // Innentol keressuk a bytes outputot a kovetkezo interface-ig
+                                  for (var j = i + 1; j < lines.length; j++) {
+                                      if (lines[j].match(/Ethernet/) && !lines[j].includes("bytes output")) break;
+                                      if (lines[j].match(/Class-map:/)) break;
+                                      
+                                      var m = lines[j].match(/\(bytes output\)\s+(\d+)/);
+                                      if (m) {
+                                          return m[1]; // Csak a szamot adjuk vissza!
+                                      }
+                                  }
+                              }
                           }
                       }
-                      return 0;
+                      return found_val;
+                - type: SIMPLE_CHANGE
               master_item:
                 key: 'ssh.run[cisco.qos]'
               tags:
                 - tag: Monitoring
-                  value: QoS
-            - uuid: a921f61249f349f68c8680c30f37183b
-              name: 'Interface {#IFNAME}: QoS {#CLASSNAME} Drop Rate'
+                  value: Qos
+            - uuid: '76234875234542348765234875623485'
+              name: 'Interface {#IFNAME}: QoS {#CLASSNAME} Drops'
               type: DEPENDENT
-              key: 'cisco.qos.droprate[{#IFNAME},{#CLASSNAME}]'
+              key: 'cisco.qos.class.drops[{#IFNAME},{#CLASSNAME}]'
+              history: 7d
               value_type: FLOAT
-              units: bps
+              trends: 90d
+              description: 'Dobott csomagok (Delta).'
               preprocessing:
                 - type: JAVASCRIPT
                   parameters:
                     - |
-                      var lines = value.split('\n');
-                      var targetIf = '{#IFNAME}'; var targetClass = '{#CLASSNAME}';
-                      var currIf = '', currClass = '';
-                      function clean(n) { return n.replace('GigabitEthernet', 'Gi').replace('TenGigabitEthernet', 'Te').replace('FastEthernet', 'Fa').trim(); }
+                      var lines = value.split(/\r?\n/);
+                      var target_if = '{#IFNAME}';
+                      var target_class = '{#CLASSNAME}';
+                      var in_target_if = false;
+                      
                       for (var i = 0; i < lines.length; i++) {
-                          var l = lines[i].trim();
-                          if (l.match(/^(GigabitEthernet|TenGigabitEthernet|FastEthernet|Gi|Te|Fa)[0-9\/]+/)) { 
-                              currIf = clean(l.split(' ')[0]); 
+                          var line = lines[i].trim();
+                          
+                          if (line.indexOf(target_if) !== -1 && !line.includes("Class-map")) {
+                              in_target_if = true;
+                          } else if (line.match(/(Gi|Te|Fa|Tw)[a-zA-Z]*[0-9\/]+/) && line.indexOf(target_if) === -1 && !line.includes("Class-map")) {
+                              in_target_if = false;
                           }
-                          if (l.match(/^Class-map:/)) { currClass = l.split(':')[1].trim().split(' ')[0]; }
-                          if (currIf === targetIf && currClass === targetClass && l.match(/drop rate/)) {
-                              var m = l.match(/drop rate\s+(\d+)/); return m ? m[1] : 0;
+                      
+                          if (in_target_if) {
+                              if (line.includes('Class-map:') && line.includes(target_class)) {
+                                  for (var j = i + 1; j < lines.length; j++) {
+                                      if (lines[j].match(/Ethernet/) && !lines[j].includes("bytes output")) break;
+                                      if (lines[j].match(/Class-map:/)) break;
+                                      
+                                      var m = lines[j].match(/drop rate\s+(\d+)/);
+                                      if (m) {
+                                          return m[1];
+                                      }
+                                  }
+                              }
                           }
                       }
-                      return 0;
+                      return '0';
+                - type: SIMPLE_CHANGE
               master_item:
                 key: 'ssh.run[cisco.qos]'
               tags:
                 - tag: Monitoring
-                  value: QoS
-              trigger_prototypes:
-                - uuid: 3aac9d27435d43d4b06043a413bd70ed
-                  expression: 'last(/Cisco Catalyst 9300 Switch/cisco.qos.droprate[{#IFNAME},{#CLASSNAME}])>0'
-                  name: 'Interface {#IFNAME} QoS: Packets dropped in class {#CLASSNAME}'
-                  priority: AVERAGE
+                  value: Qos
           master_item:
             key: 'ssh.run[cisco.qos]'
           preprocessing:
             - type: JAVASCRIPT
               parameters:
                 - |
-                  var lines = value.split('\n');
-                  var result = []; var currIf = '';
-                  function clean(n) { return n.replace('GigabitEthernet', 'Gi').replace('TenGigabitEthernet', 'Te').replace('FastEthernet', 'Fa').trim(); }
+                  var lines = value.split(/\r?\n/);
+                  var output = [];
+                  var current_if = '';
+                  
                   for (var i = 0; i < lines.length; i++) {
-                      var l = lines[i].trim();
-                      if (l.match(/^(GigabitEthernet|TenGigabitEthernet|FastEthernet|Gi|Te|Fa)[0-9\/]+/)) { 
-                          currIf = clean(l.split(' ')[0]); 
+                      var line = lines[i].trim();
+                      // Interface keresese. Cisco kimenetben: " GigabitEthernet1/0/1 "
+                      // A regex: sor elejen vagy kozepen talalhato interface nev
+                      var if_match = line.match(/(Gi|Te|Fa|Tw)[a-zA-Z]*[0-9\/]+/);
+                      if (if_match && !line.includes("Class-map")) {
+                         // Ha ez egy interface sor (es nem class map hivatkozas)
+                         current_if = if_match[0];
                       }
-                      if (l.match(/^Class-map:/) && currIf !== '') {
-                          result.push({ '{#IFNAME}': currIf, '{#CLASSNAME}': l.split(':')[1].trim().split(' ')[0] });
+                      
+                      // Class-map keresese
+                      var match_class = line.match(/Class-map:\s+([^\s]+)/);
+                      if (match_class && current_if !== '') {
+                          output.push({
+                              "{#IFNAME}": current_if,
+                              "{#CLASSNAME}": match_class[1]
+                          });
                       }
                   }
-                  return JSON.stringify(result);
+                  return JSON.stringify(output);
         - uuid: c5e6f7a8b9c04411a123817865247000
           name: 'Monitoring: Transceiver (SFP) Sensors'
           type: SNMP_AGENT
@@ -1432,6 +1563,47 @@ zabbix_export:
               priority: HIGH
               description: 'Critical alert: A Trunk interface is DOWN.'
               manual_close: 'YES'
+        - uuid: 9622d9b688c249858025a6e54f733621
+          name: 'AAA / Port Auth Discovery (Active Ports)'
+          type: SNMP_AGENT
+          snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFOPERSTATUS},1.3.6.1.2.1.2.2.1.8]'
+          key: net.if.discovery.aaa
+          item_prototypes:
+            - uuid: 5c9f53581960496ab220431835e41571
+              name: 'Interface {#IFNAME}: AAA/802.1x Status'
+              type: SNMP_AGENT
+              snmp_oid: '1.0.8802.1.1.1.1.2.1.1.6.{#SNMPINDEX}'
+              key: 'net.if.aaa.status[{#IFNAME}]'
+              delay: 5m
+              history: 7d
+              valuemap:
+                name: '802.1x PAE State'
+              tags:
+                - tag: Monitoring
+                  value: AAA
+            - uuid: 4d5e6f7890124456a890abcdef123456
+              name: 'Interface {#IFNAME}: Operstatus (AAA check)'
+              type: SNMP_AGENT
+              snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
+              key: 'net.if.operstatus[{#SNMPINDEX}]'
+              delay: 5m
+              history: 1d
+              trends: '0'
+              valuemap:
+                name: 'Cisco IOS-XE: ifOperStatus'
+              tags:
+                - tag: Monitoring
+                  value: Internal
+          trigger_prototypes:
+            - uuid: 8f3c7136231945989635420658410294
+              expression: 'last(/Cisco Catalyst 9300 Switch/net.if.aaa.status[{#IFNAME}])<>1 and last(/Cisco Catalyst 9300 Switch/net.if.aaa.status[{#IFNAME}])<>3 and last(/Cisco Catalyst 9300 Switch/net.if.operstatus[{#SNMPINDEX}])=1'
+              name: 'Security: AAA Auth Failed on Active Port {#IFNAME}'
+              priority: HIGH
+              description: 'A port UP, de nincs sikeres hitelesítés. A Connecting (3) állapotot figyelmen kívül hagyjuk.'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: AAA
         - uuid: 5257520e76744080a747966336329705
           name: 'Monitoring: Neighbors Discovery'
           type: SNMP_AGENT
@@ -1675,6 +1847,27 @@ zabbix_export:
               description: 'PoE consumption is approaching the total available power budget on Switch {#SNMPINDEX}.'
               manual_close: 'YES'
       valuemaps:
+        - uuid: 7a8b9c0de1f243a49567890abcdef123
+          name: '802.1x PAE State'
+          mappings:
+            - value: '1'
+              newvalue: Authenticated
+            - value: '2'
+              newvalue: Disconnected
+            - value: '3'
+              newvalue: Connecting
+            - value: '4'
+              newvalue: Authenticating
+            - value: '5'
+              newvalue: Authenticating
+            - value: '6'
+              newvalue: Aborting
+            - value: '7'
+              newvalue: 'Held (Fail)'
+            - value: '8'
+              newvalue: ForceAuth
+            - value: '9'
+              newvalue: ForceUnauth
         - uuid: '33130132211546458025061220625340'
           name: 'Cisco Config Status'
           mappings:
@@ -1737,6 +1930,23 @@ zabbix_export:
               newvalue: NotPresent
             - value: '7'
               newvalue: LowerLayerDown
+        - uuid: 6f23a1c5d9e84b728956e1234567890a
+          name: 'Cisco IOS-XE: ifOperStatus'
+          mappings:
+            - value: '1'
+              newvalue: up
+            - value: '2'
+              newvalue: down
+            - value: '3'
+              newvalue: testing
+            - value: '4'
+              newvalue: unknown
+            - value: '5'
+              newvalue: dormant
+            - value: '6'
+              newvalue: notPresent
+            - value: '7'
+              newvalue: lowerLayerDown
         - uuid: a827c37618954b88a390184719284766
           name: 'Cisco IP SLA Oper Status'
           mappings:
