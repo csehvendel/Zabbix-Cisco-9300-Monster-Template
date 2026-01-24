@@ -1,0 +1,388 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: daa9e4eea3a245dc993854bb64ea1cd7
+      name: 'Templates/Network devices'
+  templates:
+    - uuid: ec37c46d393e4a0193109c884876afde
+      template: 'Ubiquiti USW-Pro-Aggregation'
+      name: 'Ubiquiti USW-Pro-Aggregation'
+      groups:
+        - name: 'Templates/Network devices'
+      items:
+        - uuid: eb9a0eb7e4a842b9aadd3af1ab492687
+          name: Ping
+          type: SIMPLE
+          key: icmpping
+          history: 7d
+          tags:
+            - tag: Monitoring
+              value: Ping
+          triggers:
+            - uuid: 0122e3a929644412b7f2e7e386238856
+              expression: 'max(/Ubiquiti USW-Pro-Aggregation/icmpping,#3)=0'
+              name: 'Device Unavailable (Ping Failed)'
+              priority: DISASTER
+              tags:
+                - tag: Monitoring
+                  value: Ping
+        - uuid: d8e2447b4fa34ac8a342da17aa42ab9b
+          name: 'SSH: Get mca-dump (Master)'
+          type: SSH
+          key: 'ssh.run[mca_dump]'
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          params: mca-dump
+          username: '{$SSH_UNIFI_USER}'
+          password: '{$SSH_UNIFI_PASSWORD}'
+          description: 'Master item: lekéri a teljes switch állapotot JSON-ben.'
+        - uuid: 5ad325b61d884285b044c3b5cd89e4f0
+          name: 'System: CPU Usage'
+          type: DEPENDENT
+          key: system.cpu.util
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.[''system-stats''].cpu'
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: 'CPU Usage'
+          triggers:
+            - uuid: 37c65c19f4c249ae8a0028a1863a62a1
+              expression: 'min(/Ubiquiti USW-Pro-Aggregation/system.cpu.util,5m)>90'
+              name: 'High CPU usage (>90%)'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: 'CPU Usage'
+        - uuid: 9121614f26f649d49b50682b2dc305f6
+          name: 'Inventory: Model'
+          type: DEPENDENT
+          key: system.hw.model
+          history: 7d
+          value_type: CHAR
+          inventory_link: TYPE
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.model
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Hardware
+              value: Inventory
+        - uuid: 82c02ca1558245da83d90a887dd8b28c
+          name: 'Inventory: Serial Number'
+          type: DEPENDENT
+          key: system.hw.serial
+          history: 7d
+          value_type: CHAR
+          inventory_link: SERIALNO_A
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.serial
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Hardware
+              value: Inventory
+        - uuid: 6e5b21cf2a3c4f0d9647128af4f2ca74
+          name: 'Inventory: Firmware Version'
+          type: DEPENDENT
+          key: system.sw.version
+          history: 7d
+          value_type: CHAR
+          inventory_link: OS
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.version
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Hardware
+              value: Inventory
+        - uuid: 0a0534c0b6fb46e8a3ab6182d6fae18a
+          name: 'System: Memory Used'
+          type: DEPENDENT
+          key: vm.memory.util
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var used = data.sys_stats.mem_used;
+                  var total = data.sys_stats.mem_total;
+                  return (used / total) * 100;
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: 'Memory Usage'
+      discovery_rules:
+        - uuid: dc24886c7fca42ff898c55dddc654089
+          name: 'Port Discovery (mca-dump)'
+          type: DEPENDENT
+          key: net.if.discovery.mca
+          item_prototypes:
+            - uuid: a7391910ac244e89921bc9e4b521262d
+              name: 'Interface Port {#IFNAME}: LLDP Remote Chassis ID'
+              type: DEPENDENT
+              key: 'lldp.chassis[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.lldp_table[?(@.local_port_idx==''{#IFNAME}'')].chassis_id.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: Neighbors
+            - uuid: b8402a21bd354f9a932cd0f5c632373e
+              name: 'Interface Port {#IFNAME}: LLDP Remote Port ID'
+              type: DEPENDENT
+              key: 'lldp.port[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.lldp_table[?(@.local_port_idx==''{#IFNAME}'')].port_id.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: Neighbors
+            - uuid: 7086d5aecdce40d1b0e8c48dbb8e5493
+              name: 'Interface Port {#IFNAME}: Inbound Traffic'
+              type: DEPENDENT
+              key: 'net.if.in[{#IFNAME}]'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].rx_bytes.first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Traffic'
+            - uuid: b79a616e244f4de79399d2c18373463e
+              name: 'Interface Port {#IFNAME}: Outbound Traffic'
+              type: DEPENDENT
+              key: 'net.if.out[{#IFNAME}]'
+              history: 7d
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].tx_bytes.first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '8'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Traffic'
+            - uuid: 410c0b2caa5b4eb59d31a904cc05312b
+              name: 'Interface Port {#IFNAME}: Status'
+              type: DEPENDENT
+              key: 'net.if.status[{#IFNAME}]'
+              history: 7d
+              valuemap:
+                name: 'Interface Status MCA'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].up.first()'
+                - type: BOOL_TO_DECIMAL
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Status'
+            - uuid: 14309e45440742f9b2d9732168923028
+              name: 'Interface Port {#IFNAME}: SFP Part Number'
+              type: DEPENDENT
+              key: 'sfp.part[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_part.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Hardware
+                  value: SFP
+            - uuid: 72093e03de07442ca6e2074360e2003d
+              name: 'Interface Port {#IFNAME}: SFP RX Power'
+              type: DEPENDENT
+              key: 'sfp.rx[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: dBm
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_rxpower.first()'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: SFP
+            - uuid: 9982404e4c27447db480674c0e44cb94
+              name: 'Interface Port {#IFNAME}: SFP Serial Number'
+              type: DEPENDENT
+              key: 'sfp.serial[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_serial.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Hardware
+                  value: SFP
+            - uuid: 60e98031d27949ecb344799042294970
+              name: 'Interface Port {#IFNAME}: SFP Temperature'
+              type: DEPENDENT
+              key: 'sfp.temp[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: °C
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_temperature.first()'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: SFP
+                - tag: Monitoring
+                  value: Temperature
+            - uuid: 8e3780373e97424fb870bc706db23a7b
+              name: 'Interface Port {#IFNAME}: SFP TX Power'
+              type: DEPENDENT
+              key: 'sfp.tx[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: dBm
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_txpower.first()'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: SFP
+            - uuid: 01e5951dcb1a4877992558c37decaeed
+              name: 'Interface Port {#IFNAME}: SFP Vendor'
+              type: DEPENDENT
+              key: 'sfp.vendor[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_vendor.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Hardware
+                  value: SFP
+            - uuid: 0292723c023f4c698947fca43f03b22b
+              name: 'Interface Port {#IFNAME}: SFP Voltage'
+              type: DEPENDENT
+              key: 'sfp.voltage[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: V
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].sfp_voltage.first()'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: SFP
+          trigger_prototypes:
+            - uuid: 4894372986474fbda38d227499690f0d
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.if.status[{#IFNAME}])=0 and length(last(/Ubiquiti USW-Pro-Aggregation/sfp.vendor[{#IFNAME}]))>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.if.status[{#IFNAME}])=1 or length(last(/Ubiquiti USW-Pro-Aggregation/sfp.vendor[{#IFNAME}]))=0'
+              name: 'Interface Port {#IFNAME} is Down (with SFP present)'
+              priority: INFO
+              manual_close: 'YES'
+              tags:
+                - tag: Interface
+                  value: 'Port {#IFNAME}'
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          lld_macro_paths:
+            - lld_macro: '{#IFALIAS}'
+              path: $.name
+            - lld_macro: '{#IFNAME}'
+              path: $.port_idx
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.port_table
+      valuemaps:
+        - uuid: d6e45c72e65a45ccb2820c87efeb1b0a
+          name: 'Interface Status'
+          mappings:
+            - value: '1'
+              newvalue: Up
+            - value: '2'
+              newvalue: Down
+            - value: '3'
+              newvalue: Testing
+        - uuid: aaf8e2f70eae43deafd7287db697d0f0
+          name: 'Interface Status MCA'
+          mappings:
+            - value: '1'
+              newvalue: Up
+            - value: '0'
+              newvalue: Down
