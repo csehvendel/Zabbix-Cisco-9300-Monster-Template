@@ -18,7 +18,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.4.1.9.9.43.1.1.1.0
           key: cisco.config.running.last_changed
-          delay: 5m
+          delay: 10m
           history: 7d
           trends: '0'
           units: unixtime
@@ -30,7 +30,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.4.1.9.9.43.1.1.3.0
           key: cisco.config.startup.last_changed
-          delay: 5m
+          delay: 10m
           history: 7d
           value_type: FLOAT
           trends: 90d
@@ -42,7 +42,7 @@ zabbix_export:
           name: 'Config: Synchronization Status'
           type: CALCULATED
           key: cisco.config.status
-          delay: 5m
+          delay: 10m
           history: 7d
           value_type: FLOAT
           trends: 90d
@@ -58,6 +58,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.4.1.9.2.1.57.0
           key: cisco.cpu.total.1m
+          delay: 5m
           history: 7d
           value_type: FLOAT
           trends: 90d
@@ -93,7 +94,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.4.1.9.9.380.1.1.1.0
           key: cisco.dhcp_snooping.status
-          delay: 5m
+          delay: 10m
           history: 7d
           value_type: FLOAT
           trends: 90d
@@ -285,6 +286,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'walk[1.3.6.1.2.1.4.22.1.2]'
           key: cisco.net.arp.walk
+          delay: 5m
           history: '0'
           value_type: TEXT
           description: 'A teljes ARP tábla letöltése és JSON konverziója.'
@@ -330,6 +332,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.4.1.9.9.500.1.1.3.0
           key: cisco.stack.ring.redundant
+          delay: 5m
           history: 7d
           valuemap:
             name: 'Cisco Stack Redundancy Status'
@@ -340,6 +343,7 @@ zabbix_export:
           name: 'ICMP Ping'
           type: SIMPLE
           key: icmpping
+          delay: 5m
           tags:
             - tag: Monitoring
               value: Ping
@@ -356,6 +360,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.17.2.4.0
           key: net.stp.top_changes
+          delay: 5m
           tags:
             - tag: Monitoring
               value: STP
@@ -363,6 +368,7 @@ zabbix_export:
           name: 'Service: Web (HTTP) status'
           type: SIMPLE
           key: 'net.tcp.service[http]'
+          delay: 5m
           history: 7d
           trends: '0'
           valuemap:
@@ -374,6 +380,7 @@ zabbix_export:
           name: 'Service: SSH status'
           type: SIMPLE
           key: 'net.tcp.service[ssh]'
+          delay: 5m
           history: 7d
           trends: '0'
           valuemap:
@@ -385,6 +392,7 @@ zabbix_export:
           name: 'Service: Telnet status'
           type: SIMPLE
           key: 'net.tcp.service[telnet]'
+          delay: 5m
           history: 7d
           trends: '0'
           valuemap:
@@ -396,6 +404,7 @@ zabbix_export:
           name: 'SSH: IPDT Data'
           type: SSH
           key: 'ssh.run[cisco.ipdt]'
+          delay: 5m
           history: '0'
           value_type: TEXT
           params: 'show device-tracking database | exclude FE80::'
@@ -405,6 +414,7 @@ zabbix_export:
           name: 'SSH: PoE Data'
           type: SSH
           key: 'ssh.run[cisco.poe]'
+          delay: 5m
           history: '0'
           value_type: TEXT
           params: 'show power inline'
@@ -415,19 +425,18 @@ zabbix_export:
           name: 'SSH: QoS Raw Data'
           type: SSH
           key: 'ssh.run[cisco.qos]'
+          delay: 5m
           history: '0'
           value_type: TEXT
           params: 'show policy-map interface | include Ethernet|Class-map:|drop rate|bytes output'
           username: '{$SSH_USER}'
           password: '{$SSH_PASSWORD}'
           description: 'Nyers QoS adatok letoltese. Ebbol dolgozik a Discovery (Output es Drop is).'
-          tags:
-            - tag: Monitoring
-              value: QoS
         - uuid: 90c6de1f000c4630bb779a72804c8bc9
           name: 'SSH: Stack Power Data'
           type: SSH
           key: 'ssh.run[cisco.stack]'
+          delay: 5m
           history: '0'
           value_type: TEXT
           params: 'show stack-power'
@@ -438,6 +447,7 @@ zabbix_export:
           name: 'SSH: STP Data'
           type: SSH
           key: 'ssh.run[cisco.stp]'
+          delay: 5m
           history: '0'
           value_type: TEXT
           params: 'show spanning-tree'
@@ -449,7 +459,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.17.1.1.0
           key: system.hw.macaddr.inventory
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: MACADDRESS_A
@@ -458,7 +468,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.47.1.1.1.1.13.1
           key: system.hw.model.inventory
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: TYPE
@@ -467,7 +477,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.47.1.1.1.1.11.1
           key: system.hw.serialno.inventory
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: SERIALNO_A
@@ -476,7 +486,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.1.6.0
           key: system.location
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: LOCATION
@@ -485,7 +495,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.1.5.0
           key: system.name.inventory
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: NAME
@@ -494,7 +504,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.47.1.1.1.1.10.1
           key: system.sw.os.inventory
-          delay: 1h
+          delay: 1d
           history: 7d
           value_type: CHAR
           inventory_link: OS
@@ -504,6 +514,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#ARP_MAC},1.3.6.1.2.1.4.22.1.2,{#ARP_IP},1.3.6.1.2.1.4.22.1.3]'
           key: arp.table.discovery
+          delay: 5m
           item_prototypes:
             - uuid: c0d1e2f3a4b54678890123456789abcd
               name: 'ARP Entry: IP {#ARP_IP}'
@@ -531,6 +542,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'entPhysicalModelName.chassis[{#SNMPINDEX}]'
+              delay: 1d
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -540,6 +552,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.11.{#SNMPINDEX}'
               key: 'entPhysicalSerialNum.chassis[{#SNMPINDEX}]'
+              delay: 1d
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -549,13 +562,14 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#PSU_NAME},1.3.6.1.4.1.9.9.13.1.5.1.2]'
           key: cisco.entity.psu.discovery
-          delay: 1h
+          delay: 1d
           item_prototypes:
             - uuid: a1b2c3d4e5f64422a123817865245802
               name: '{#PSU_NAME} PID'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'entPhysicalModelName.psu[{#SNMPINDEX}]'
+              delay: 1d
               value_type: TEXT
               preprocessing:
                 - type: JAVASCRIPT
@@ -569,6 +583,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.11.{#SNMPINDEX}'
               key: 'entPhysicalSerialNum.psu[{#SNMPINDEX}]'
+              delay: 1d
               value_type: TEXT
               preprocessing:
                 - type: JAVASCRIPT
@@ -582,6 +597,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'psu.wattage.extracted[{#SNMPINDEX}]'
+              delay: 1d
               units: W
               preprocessing:
                 - type: JAVASCRIPT
@@ -610,6 +626,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'entPhysicalModelName.sfp[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -619,6 +636,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.11.{#SNMPINDEX}'
               key: 'entPhysicalSerialNum.sfp[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -643,6 +661,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'entPhysicalModelName.stack[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -652,6 +671,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.11.{#SNMPINDEX}'
               key: 'entPhysicalSerialNum.stack[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -672,6 +692,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.13.{#SNMPINDEX}'
               key: 'entPhysicalModelName.comp[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -681,6 +702,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.47.1.1.1.1.11.{#SNMPINDEX}'
               key: 'entPhysicalSerialNum.comp[{#SNMPINDEX}]'
+              delay: 1h
               value_type: TEXT
               tags:
                 - tag: Hardware
@@ -690,12 +712,14 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#FAN_NAME},1.3.6.1.4.1.9.9.13.1.4.1.2]'
           key: cisco.envmon.fan.status.discovery
+          delay: 5m
           item_prototypes:
             - uuid: f7a8b9c0d1e24411a123817865245896
               name: '{#FAN_NAME} Status'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.13.1.4.1.3.{#SNMPINDEX}'
               key: 'ciscoEnvMonFanState[{#SNMPINDEX}]'
+              delay: 5m
               valuemap:
                 name: 'Cisco EnvMon State'
               tags:
@@ -711,12 +735,14 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#PSU_NAME},1.3.6.1.4.1.9.9.13.1.5.1.2]'
           key: cisco.envmon.psu.status.discovery
+          delay: 5m
           item_prototypes:
             - uuid: b3c4d5e6f7a84411a123817865245852
               name: '{#PSU_NAME} Status'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.13.1.5.1.3.{#SNMPINDEX}'
               key: 'ciscoEnvMonSupplyState[{#SNMPINDEX}]'
+              delay: 5m
               valuemap:
                 name: 'Cisco EnvMon State'
               tags:
@@ -732,6 +758,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#FSNAME},1.3.6.1.4.1.9.9.229.1.1.1.1]'
           key: cisco.fs.discovery
+          delay: 5m
           filter:
             conditions:
               - macro: '{#FSNAME}'
@@ -881,6 +908,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#IPSLA_TAG},1.3.6.1.4.1.9.9.42.1.2.1.1.3]'
           key: cisco.ipsla.discovery
+          delay: 5m
           description: 'Felderíti az IP SLA méréseket a ''rttMonCtrlAdminTag'' alapján.'
           item_prototypes:
             - uuid: '17025816734045558022718366432402'
@@ -939,7 +967,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 1.3.6.1.2.1.1.6.0
           key: cisco.location.discovery
-          delay: 1h
+          delay: 1d
           host_prototypes:
             - uuid: 8f2e1a9c3b4d4e5fa6b7c8d9e0f1a2b4
               host: '{#CITY}_{#BUILDING}_{#SNMPINDEX}'
@@ -967,6 +995,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#MEMNAME},1.3.6.1.4.1.9.9.48.1.1.1.2]'
           key: cisco.memory.discovery
+          delay: 5m
           description: 'Cisco Memory Pool-ok felderítése (pl. Processor, I/O).'
           item_prototypes:
             - uuid: 08a67923f36845e7a7c889b533668352
@@ -974,6 +1003,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.48.1.1.1.6.{#SNMPINDEX}'
               key: 'cisco.memory.free[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               trends: 90d
@@ -987,6 +1017,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.48.1.1.1.5.{#SNMPINDEX}'
               key: 'cisco.memory.used[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               trends: 90d
@@ -999,6 +1030,7 @@ zabbix_export:
               name: 'Memory [{#MEMNAME}]: Utilization'
               type: CALCULATED
               key: 'cisco.memory.util[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               trends: 90d
@@ -1149,7 +1181,7 @@ zabbix_export:
                 key: 'ssh.run[cisco.qos]'
               tags:
                 - tag: Monitoring
-                  value: Qos
+                  value: QoS
             - uuid: '76234875234542348765234875623485'
               name: 'Interface {#IFNAME}: QoS {#CLASSNAME} Drops'
               type: DEPENDENT
@@ -1196,7 +1228,7 @@ zabbix_export:
                 key: 'ssh.run[cisco.qos]'
               tags:
                 - tag: Monitoring
-                  value: Qos
+                  value: QoS
           master_item:
             key: 'ssh.run[cisco.qos]'
           preprocessing:
@@ -1232,6 +1264,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#SENSOR_NAME},1.3.6.1.2.1.47.1.1.1.1.7,{#SENSOR_TYPE},1.3.6.1.4.1.9.9.91.1.1.1.1.1]'
           key: cisco.sfp.discovery
+          delay: 5m
           filter:
             evaltype: AND
             conditions:
@@ -1268,6 +1301,16 @@ zabbix_export:
                   priority: WARNING
                   description: 'Optical receive power is low. Potential fiber issue or dirty connector.'
                   manual_close: 'YES'
+          graph_prototypes:
+            - uuid: 36748e541ff4413eb7eab55a3c1cd7fa
+              name: 'SFP: {#SENSOR_NAME}'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'sensor.value[{#SNMPINDEX}]'
           overrides:
             - name: 'Enable Rx Power Triggers'
               step: '1'
@@ -1287,12 +1330,14 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#SNMPVALUE},1.3.6.1.4.1.9.9.500.1.2.1.1.1]'
           key: cisco.stack.member.discovery
+          delay: 5m
           item_prototypes:
             - uuid: d1e2f3a4b5c647f889b0c1d2e3f4a5b6
               name: 'Switch {#SWITCH_NUM}: Role'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.500.1.2.1.1.3.{#SNMPINDEX}'
               key: 'cisco.stack.switch.role[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               valuemap:
                 name: 'Cisco Stack Role'
@@ -1304,6 +1349,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.4.1.9.9.500.1.2.1.1.6.{#SNMPINDEX}'
               key: 'cisco.stack.switch.state[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               valuemap:
                 name: 'Cisco Stack State'
@@ -1378,6 +1424,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#SENSOR_NAME},1.3.6.1.2.1.47.1.1.1.1.7,{#SENSOR_TYPE},1.3.6.1.4.1.9.9.91.1.1.1.1.1,{#SENSOR_PRECISION},1.3.6.1.4.1.9.9.91.1.1.1.1.3]'
           key: cisco.temp.discovery
+          delay: 5m
           filter:
             evaltype: AND
             conditions:
@@ -1399,25 +1446,34 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: Temperature
+          graph_prototypes:
+            - uuid: 9d312c58e4d8496b91d4987d367a6732
+              name: '{#SENSOR_NAME}: Temperature'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'cisco.temp.value[{#SNMPINDEX}]'
         - uuid: a7b8c9d0e1f24411a123817865246100
           name: 'Monitoring: Network Interface Discovery'
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1]'
           key: net.if.discovery
+          delay: 5m
           item_prototypes:
             - uuid: aa345678123441238123123456789012
               name: 'Interface {#IFNAME}: Broadcast packets received'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.9.{#SNMPINDEX}'
               key: 'net.if.in.broadcast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               units: pps
               preprocessing:
                 - type: CHANGE_PER_SECOND
-                - type: MULTIPLIER
-                  parameters:
-                    - '-1'
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic Types'
@@ -1426,14 +1482,12 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.8.{#SNMPINDEX}'
               key: 'net.if.in.multicast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               units: pps
               preprocessing:
                 - type: CHANGE_PER_SECOND
-                - type: MULTIPLIER
-                  parameters:
-                    - '-1'
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic Types'
@@ -1442,14 +1496,12 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.7.{#SNMPINDEX}'
               key: 'net.if.in.ucast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               units: pps
               preprocessing:
                 - type: CHANGE_PER_SECOND
-                - type: MULTIPLIER
-                  parameters:
-                    - '-1'
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic Types'
@@ -1458,6 +1510,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.6.{#SNMPINDEX}'
               key: 'net.if.in[{#IFNAME}]'
+              delay: 5m
               history: 7d
               value_type: FLOAT
               units: bps
@@ -1492,6 +1545,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.13.{#SNMPINDEX}'
               key: 'net.if.out.broadcast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               units: pps
               preprocessing:
@@ -1504,6 +1558,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.12.{#SNMPINDEX}'
               key: 'net.if.out.multicast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               units: pps
               preprocessing:
@@ -1516,6 +1571,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.11.{#SNMPINDEX}'
               key: 'net.if.out.ucast[{#IFNAME}]'
+              delay: 5m
               history: 7d
               units: pps
               preprocessing:
@@ -1528,6 +1584,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.10.{#SNMPINDEX}'
               key: 'net.if.out[{#IFNAME}]'
+              delay: 5m
               history: 7d
               units: bps
               preprocessing:
@@ -1542,26 +1599,12 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic'
-            - uuid: 3d1a044b1b234e998a20ec1cd6fbc126
-              name: 'Interface {#IFNAME}: Recv Speed'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
-              key: 'net.if.recv.speed[{#IFNAME}]'
-              delay: 12h
-              history: 7d
-              value_type: FLOAT
-              trends: '0'
-              units: bps
-              preprocessing:
-                - type: MULTIPLIER
-                  parameters:
-                    - '-1000000'
             - uuid: '33345678123441238123123456789012'
               name: 'Interface {#IFNAME}: Speed'
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.31.1.1.1.15.{#SNMPINDEX}'
               key: 'net.if.speed[{#IFNAME}]'
-              delay: 12h
+              delay: 1d
               history: 7d
               trends: '0'
               units: bps
@@ -1578,6 +1621,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
               key: 'net.if.status[{#IFNAME}]'
+              delay: 5m
               history: 7d
               valuemap:
                 name: 'Cisco Interface Status'
@@ -1624,28 +1668,13 @@ zabbix_export:
               description: 'Critical alert: A Trunk interface is DOWN.'
               manual_close: 'YES'
           graph_prototypes:
-            - uuid: 13628bc0c2ba41969dff7bc1f2d3bd14
-              name: 'Interface {#IFNAME} Traffic'
-              show_triggers: 'NO'
-              graph_items:
-                - drawtype: FILLED_REGION
-                  color: 1A7C11
-                  calc_fnc: MIN
-                  item:
-                    host: 'Cisco Catalyst 9300 Switch'
-                    key: 'net.if.in[{#IFNAME}]'
-                - sortorder: '1'
-                  drawtype: FILLED_REGION
-                  color: FFBF00
-                  calc_fnc: MIN
-                  item:
-                    host: 'Cisco Catalyst 9300 Switch'
-                    key: 'net.if.out[{#IFNAME}]'
             - uuid: c68951d5cae7427a9da8a3b40ab80805
-              name: 'Interface {#IFNAME} Traffic Types'
+              name: 'Interface {#IFNAME} Inbound Traffic Types'
+              width: '500'
               show_work_period: 'NO'
               show_triggers: 'NO'
               type: PIE
+              show_3d: 'YES'
               graph_items:
                 - color: FF0000
                   calc_fnc: MIN
@@ -1664,29 +1693,54 @@ zabbix_export:
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.in.ucast[{#IFNAME}]'
-                - sortorder: '3'
-                  color: FF0000
+            - uuid: 043776fc56e94bc6adda4c85e8c45c53
+              name: 'Interface {#IFNAME} Outbound Traffic Types'
+              width: '500'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: PIE
+              show_3d: 'YES'
+              graph_items:
+                - color: FF0000
                   calc_fnc: MIN
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.out.broadcast[{#IFNAME}]'
-                - sortorder: '4'
+                - sortorder: '1'
                   color: FFFF00
                   calc_fnc: MIN
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.out.multicast[{#IFNAME}]'
-                - sortorder: '5'
-                  color: 00FF00
+                - sortorder: '2'
+                  color: 80FF00
                   calc_fnc: MIN
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.out.ucast[{#IFNAME}]'
+            - uuid: 13628bc0c2ba41969dff7bc1f2d3bd14
+              name: 'Interface {#IFNAME} Traffic'
+              show_triggers: 'NO'
+              graph_items:
+                - drawtype: FILLED_REGION
+                  color: 1A7C11
+                  calc_fnc: MIN
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.in[{#IFNAME}]'
+                - sortorder: '1'
+                  drawtype: FILLED_REGION
+                  color: FFBF00
+                  calc_fnc: MIN
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.out[{#IFNAME}]'
         - uuid: 9622d9b688c249858025a6e54f733621
           name: 'Monitoring: AAA / Port Auth Discovery (Active Ports)'
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1,{#IFOPERSTATUS},1.3.6.1.2.1.2.2.1.8]'
           key: net.if.discovery.aaa
+          delay: 5m
           filter:
             evaltype: AND
             conditions:
@@ -1700,6 +1754,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.0.8802.1.1.1.1.2.1.1.6.{#SNMPINDEX}'
               key: 'net.if.aaa.status[{#IFNAME}]'
+              delay: 5m
               history: 7d
               valuemap:
                 name: '802.1x PAE State'
@@ -1711,6 +1766,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.2.2.1.8.{#SNMPINDEX}'
               key: 'net.if.operstatus[{#SNMPINDEX}]'
+              delay: 5m
               history: 1d
               trends: '0'
               valuemap:
@@ -1733,6 +1789,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1]'
           key: net.if.discovery.neighbors.detailed
+          delay: 5m
           item_prototypes:
             - uuid: '33718029584346928236166415494132'
               name: 'Interface {#IFNAME}: Neighbor'
@@ -1810,6 +1867,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#IFNAME},1.3.6.1.2.1.31.1.1.1.1]'
           key: net.if.errors.discovery
+          delay: 5m
           item_prototypes:
             - uuid: aa11bb22cc3344448555667788990011
               name: 'Interface {#IFNAME}: Inbound discards'
@@ -1919,11 +1977,53 @@ zabbix_export:
                   name: 'Interface {#IFNAME}: High outbound error rate'
                   priority: WARNING
                   description: 'Detects outbound errors on the interface.'
+          graph_prototypes:
+            - uuid: 9d5acefbc85e493ea56ec2400d201475
+              name: 'Interface {#IFNAME} Discards'
+              yaxismax: '0'
+              graph_items:
+                - color: FFBF00
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.in.discards[{#IFNAME}]'
+                - sortorder: '1'
+                  color: FF5722
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.out.discards[{#IFNAME}]'
+            - uuid: 68a770615cb14c8d8c9c2060b416f044
+              name: 'Interface {#IFNAME} Errors'
+              yaxismax: '0'
+              graph_items:
+                - color: FFBF00
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.in.errors[{#IFNAME}]'
+                - sortorder: '1'
+                  color: FF7043
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.out.errors[{#IFNAME}]'
+            - uuid: bec1d319c57a4485b3d9ff7e0b575878
+              name: 'Interface {#IFNAME} FCS Errors'
+              yaxismax: '0'
+              graph_items:
+                - drawtype: FILLED_REGION
+                  color: FF0000
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'net.if.in.fcs.errors[{#IFNAME}]'
         - uuid: 5e78a2b561c2449ba123817865246900
           name: 'Monitoring: PoE Ports'
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#POE_PORT_INDEX},1.3.6.1.2.1.105.1.1.1.15]'
           key: poe.port.discovery
+          delay: 5m
           item_prototypes:
             - uuid: b1b2c3d4e5f64711801234567890def3
               name: 'PoE Port {#SNMPINDEX}: Power Output'
@@ -1940,11 +2040,23 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: PoE
+          graph_prototypes:
+            - uuid: 948929743f9c42828a267d89979a0502
+              name: 'Interface {#IFNAME} PoE Power Output'
+              yaxismax: '0'
+              graph_items:
+                - drawtype: FILLED_REGION
+                  color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'poe.port.power[{#SNMPINDEX}]'
         - uuid: 4e78a2b561c2449ba123817865246800
           name: 'Monitoring: PoE PSE Units'
           type: SNMP_AGENT
           snmp_oid: 'discovery[{#PSE_INDEX},1.3.6.1.2.1.105.1.3.1.1.2]'
           key: poe.pse.discovery
+          delay: 5m
           item_prototypes:
             - uuid: a1b2c3d4e5f64711801234567890def1
               name: 'PoE: Switch {#SNMPINDEX} - Total Budget'
@@ -1963,6 +2075,7 @@ zabbix_export:
               type: SNMP_AGENT
               snmp_oid: '1.3.6.1.2.1.105.1.3.1.1.4.{#SNMPINDEX}'
               key: 'poe.consumption[{#SNMPINDEX}]'
+              delay: 5m
               history: 7d
               units: W
               description: 'The actual power measured by the PSE (pethMainPseConsumptionPower).'
@@ -1976,6 +2089,21 @@ zabbix_export:
               priority: HIGH
               description: 'PoE consumption is approaching the total available power budget on Switch {#SNMPINDEX}.'
               manual_close: 'YES'
+          graph_prototypes:
+            - uuid: 5f3fb6f1099b4f8d9552f7606a5c4238
+              name: 'Switch {#SNMPINDEX} - Power Consumption'
+              yaxismax: '0'
+              ymax_type_1: ITEM
+              ymax_item_1:
+                host: 'Cisco Catalyst 9300 Switch'
+                key: 'poe.budget[{#SNMPINDEX}]'
+              graph_items:
+                - drawtype: FILLED_REGION
+                  color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco Catalyst 9300 Switch'
+                    key: 'poe.consumption[{#SNMPINDEX}]'
       valuemaps:
         - uuid: 7a8b9c0de1f243a49567890abcdef123
           name: '802.1x PAE State'
