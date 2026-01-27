@@ -614,6 +614,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'net.if.in[{#IFNAME}]'
               history: 7d
+              value_type: FLOAT
               units: bps
               preprocessing:
                 - type: JSONPATH
@@ -739,6 +740,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'net.if.out[{#IFNAME}]'
               history: 7d
+              value_type: FLOAT
               units: bps
               preprocessing:
                 - type: JSONPATH
