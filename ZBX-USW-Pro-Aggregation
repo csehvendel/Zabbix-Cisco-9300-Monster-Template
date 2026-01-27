@@ -1,7 +1,7 @@
 zabbix_export:
   version: '7.4'
   template_groups:
-    - uuid: daa9e4eea3a245dc993854bb64ea1cd7
+    - uuid: 441c0cb65c274cc9aca624c11eaf6f5c
       name: 'Templates/Network devices'
   templates:
     - uuid: ec37c46d393e4a0193109c884876afde
@@ -26,6 +26,176 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: Ping
+        - uuid: 7bddbb6a32d44619ba05a7eb97cce180
+          name: 'Network Conflict Detection'
+          type: DEPENDENT
+          key: net.conflict.detection
+          history: 7d
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var ipMap = {};
+                  var macMap = {};
+                  var conflicts = [];
+                  
+                  if (data.port_table) {
+                      data.port_table.forEach(function(p) {
+                          if (p.mac_table) {
+                              p.mac_table.forEach(function(m) {
+                                  if (m.ip && m.mac && m.ip !== '0.0.0.0') {
+                                      if (!ipMap[m.ip]) ipMap[m.ip] = [];
+                                      ipMap[m.ip].push({mac: m.mac, port: p.port_idx});
+                                      
+                                      if (!macMap[m.mac]) macMap[m.mac] = [];
+                                      var seen = false;
+                                      macMap[m.mac].forEach(function(mp){ if(mp == p.port_idx) seen=true; });
+                                      if (!seen) macMap[m.mac].push(p.port_idx);
+                                  }
+                              });
+                          }
+                      });
+                  }
+                  
+                  for (var ip in ipMap) {
+                      var entries = ipMap[ip];
+                      var uniqueMacs = [];
+                      entries.forEach(function(e) { 
+                          if (uniqueMacs.indexOf(e.mac) === -1) uniqueMacs.push(e.mac); 
+                      });
+                      if (uniqueMacs.length > 1) {
+                          conflicts.push("IP Conflict: " + ip + " used by MACs: " + uniqueMacs.join(', '));
+                      }
+                  }
+                  
+                  for (var mac in macMap) {
+                      var ports = macMap[mac];
+                      if (ports.length > 1) {
+                          conflicts.push("MAC Conflict: " + mac + " seen on multiple ports: " + ports.join(', '));
+                      }
+                  }
+                  
+                  return conflicts.length > 0 ? conflicts.join('\n') : "OK";
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: 'IP Conflict'
+          triggers:
+            - uuid: 70693d807bfb4ef48ad70de1eef82962
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.conflict.detection)<>"OK"'
+              name: 'Network Conflict Detected'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Security
+        - uuid: e2cbb1ec986a4166a16d5048701b22d5
+          name: 'System: STP Topology Changes'
+          type: DEPENDENT
+          key: net.stp.topology.changes
+          history: 7d
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.stp_topology_change_count
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: STP
+          triggers:
+            - uuid: c735d34baee34a4783af6b31105bd8fd
+              expression: 'change(/Ubiquiti USW-Pro-Aggregation/net.stp.topology.changes) > 0'
+              name: 'STP Topology Change Detected'
+              priority: INFO
+              description: 'A Spanning Tree Protocol topológia változást észlelt.'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: STP
+        - uuid: d01586da73f647fcbc3610cbbf47df74
+          name: 'Hardware: Overheating Status'
+          type: DEPENDENT
+          key: sensor.alarm.overheating
+          history: 7d
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.overheating
+            - type: BOOL_TO_DECIMAL
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: Temperature
+          triggers:
+            - uuid: 33f4f6ae0d474cb087ca9c88d902d06b
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/sensor.alarm.overheating)=1'
+              name: 'Device Overheating Detected!'
+              priority: DISASTER
+              description: 'The device reports critical overheating status.'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Health
+        - uuid: 1fea7ff7c4324920877e6da6cc14f454
+          name: 'Hardware: Fan Level'
+          type: DEPENDENT
+          key: sensor.fan.level
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.fan_level
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: Fan
+        - uuid: 668017bab76e4f809f6c2d5d1d96022a
+          name: 'Hardware: System Temperature'
+          type: DEPENDENT
+          key: sensor.temp.system
+          history: 7d
+          value_type: FLOAT
+          units: °C
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.general_temperature
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: Temperature
+          triggers:
+            - uuid: 9df52045179648d49ab4e40a47c6a1f1
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/sensor.temp.system)>75'
+              name: 'High System Temperature (>75°C)'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Health
         - uuid: d8e2447b4fa34ac8a342da17aa42ab9b
           name: 'SSH: Get mca-dump (Master)'
           type: SSH
@@ -37,6 +207,19 @@ zabbix_export:
           username: '{$SSH_UNIFI_USER}'
           password: '{$SSH_UNIFI_PASSWORD}'
           description: 'Master item: lekéri a teljes switch állapotot JSON-ben.'
+        - uuid: fa44245fb5ee4598aabd6ffdaee713ef
+          name: 'System: Contact'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.4.0
+          key: system.contact
+          delay: 1h
+          history: 7d
+          value_type: CHAR
+          description: 'Kapcsolattartó információ (SysContact).'
+          inventory_link: CONTACT
+          tags:
+            - tag: Hardware
+              value: Chassis
         - uuid: 5ad325b61d884285b044c3b5cd89e4f0
           name: 'System: CPU Usage'
           type: DEPENDENT
@@ -77,7 +260,7 @@ zabbix_export:
             key: 'ssh.run[mca_dump]'
           tags:
             - tag: Hardware
-              value: Inventory
+              value: Chassis
         - uuid: 82c02ca1558245da83d90a887dd8b28c
           name: 'Inventory: Serial Number'
           type: DEPENDENT
@@ -93,7 +276,66 @@ zabbix_export:
             key: 'ssh.run[mca_dump]'
           tags:
             - tag: Hardware
-              value: Inventory
+              value: Chassis
+        - uuid: 495864977ba84d8fb52469c8dc7ce97e
+          name: 'System: Location'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.6.0
+          key: system.location
+          delay: 1h
+          history: 7d
+          value_type: CHAR
+          description: 'A fizikai helyszín leírása (SysLocation).'
+          inventory_link: LOCATION
+          tags:
+            - tag: Hardware
+              value: Chassis
+        - uuid: 5cd4b55500724922b6820e464849d1fc
+          name: 'System: Location Latitude'
+          type: DEPENDENT
+          key: system.location.lat
+          history: 7d
+          value_type: CHAR
+          inventory_link: LOCATION_LAT
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - 'LAT:([0-9.]+)'
+                - \1
+          master_item:
+            key: system.location
+          tags:
+            - tag: Hardware
+              value: Chassis
+        - uuid: ca91e3c728d64add8020ffe0c117bed2
+          name: 'System: Location Longitude'
+          type: DEPENDENT
+          key: system.location.long
+          history: 7d
+          value_type: CHAR
+          inventory_link: LOCATION_LON
+          preprocessing:
+            - type: REGEX
+              parameters:
+                - 'LONG:([0-9.]+)'
+                - \1
+          master_item:
+            key: system.location
+          tags:
+            - tag: Hardware
+              value: Chassis
+        - uuid: be63ca7276854735ba0f96539669fb8c
+          name: 'System: Hostname (SNMP)'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.2.1.1.5.0
+          key: system.name
+          delay: 1h
+          history: 7d
+          value_type: CHAR
+          inventory_link: NAME
+          tags:
+            - tag: Hardware
+              value: Chassis
         - uuid: 6e5b21cf2a3c4f0d9647128af4f2ca74
           name: 'Inventory: Firmware Version'
           type: DEPENDENT
@@ -109,7 +351,54 @@ zabbix_export:
             key: 'ssh.run[mca_dump]'
           tags:
             - tag: Hardware
-              value: Inventory
+              value: Chassis
+        - uuid: c473712b82a943a2b05b6d2140fa11b6
+          name: 'Management: Controller Connection State'
+          type: DEPENDENT
+          key: unifi.controller.state
+          history: 7d
+          value_type: FLOAT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.state
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 10m
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: 'Remote Access'
+          triggers:
+            - uuid: fce3f624a3e24405a93a23c8b16435e5
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/unifi.controller.state)<>2'
+              name: 'Device Disconnected from Controller (State is not Provisioned)'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Management
+        - uuid: ce835be8177f4d72828dd3b31f061cc1
+          name: 'Management: Controller URL'
+          type: DEPENDENT
+          key: unifi.inform.url
+          history: 7d
+          value_type: CHAR
+          description: 'Inform URL'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.inform_url
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: Management
         - uuid: 0a0534c0b6fb46e8a3ab6182d6fae18a
           name: 'System: Memory Used'
           type: DEPENDENT
@@ -154,7 +443,7 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: Neighbors
-            - uuid: b8402a21bd354f9a932cd0f5c632373e
+            - uuid: 16e5553147a74e9190736fa4b6decfb3
               name: 'Interface Port {#IFNAME}: LLDP Remote Port ID'
               type: DEPENDENT
               key: 'lldp.port[{#IFNAME}]'
@@ -172,7 +461,115 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: Neighbors
-            - uuid: 7086d5aecdce40d1b0e8c48dbb8e5493
+            - uuid: b6ff036f066b4a27ab996f5a9bcfbe64
+              name: 'Interface Port {#IFNAME}: Inbound Broadcast Packets'
+              type: DEPENDENT
+              key: 'net.if.in.broadcast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].rx_broadcast.first()'
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: ef2a2d4047494ff6a57ee841b0ba3a0d
+              name: 'Interface Port {#IFNAME}: Inbound Dropped Packets'
+              type: DEPENDENT
+              key: 'net.if.in.dropped[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].rx_dropped.first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '-1'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Errors'
+            - uuid: ebe8fcd9b1d34dfab64835fc31a2a98b
+              name: 'Interface Port {#IFNAME}: Inbound Errors'
+              type: DEPENDENT
+              key: 'net.if.in.errors[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].rx_errors.first()'
+                - type: CHANGE_PER_SECOND
+                - type: MULTIPLIER
+                  parameters:
+                    - '-1'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Errors'
+            - uuid: 6821124a3ebb4f6eadb21c4d26d06585
+              name: 'Interface Port {#IFNAME}: Inbound Multicast Packets'
+              type: DEPENDENT
+              key: 'net.if.in.multicast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].rx_multicast.first()'
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: e7ad1081d6644f31be28ac3fbe19f437
+              name: 'Interface Port {#IFNAME}: Inbound Unicast Packets'
+              type: DEPENDENT
+              key: 'net.if.in.unicast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var port = data.port_table.find(function(p){ return p.port_idx == '{#IFNAME}'; });
+                      if (!port) return 0;
+                      var total = parseInt(port.rx_packets) || 0;
+                      var bcast = parseInt(port.rx_broadcast) || 0;
+                      var mcast = parseInt(port.rx_multicast) || 0;
+                      return total - bcast - mcast;
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: e76984592bcf4edfb3df4ca906e72595
               name: 'Interface Port {#IFNAME}: Inbound Traffic'
               type: DEPENDENT
               key: 'net.if.in[{#IFNAME}]'
@@ -185,13 +582,119 @@ zabbix_export:
                 - type: CHANGE_PER_SECOND
                 - type: MULTIPLIER
                   parameters:
-                    - '8'
+                    - '-8'
+                - type: IN_RANGE
+                  parameters:
+                    - '-100000000000'
+                    - '0'
               master_item:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic'
-            - uuid: b79a616e244f4de79399d2c18373463e
+            - uuid: 8d514394889046aaa9145aeb8e685526
+              name: 'Interface Port {#IFNAME}: Outbound Broadcast Packets'
+              type: DEPENDENT
+              key: 'net.if.out.broadcast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].tx_broadcast.first()'
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: 20d8df302970423087321e2e20967734
+              name: 'Interface Port {#IFNAME}: Outbound Dropped Packets'
+              type: DEPENDENT
+              key: 'net.if.out.dropped[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].tx_dropped.first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Errors'
+            - uuid: 7bf7d3a583894c908c58eb6c46be179e
+              name: 'Interface Port {#IFNAME}: Outbound Errors'
+              type: DEPENDENT
+              key: 'net.if.out.errors[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].tx_errors.first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Errors'
+            - uuid: eb96491ac91846b9b3ad282b33def89c
+              name: 'Interface Port {#IFNAME}: Outbound Multicast Packets'
+              type: DEPENDENT
+              key: 'net.if.out.multicast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].tx_multicast.first()'
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: 7dcbe3027e1c49be986e16d1f7896fd7
+              name: 'Interface Port {#IFNAME}: Outbound Unicast Packets'
+              type: DEPENDENT
+              key: 'net.if.out.unicast[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: pps
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      var data = JSON.parse(value);
+                      var port = data.port_table.find(function(p){ return p.port_idx == '{#IFNAME}'; });
+                      if (!port) return 0;
+                      var total = parseInt(port.tx_packets) || 0;
+                      var bcast = parseInt(port.tx_broadcast) || 0;
+                      var mcast = parseInt(port.tx_multicast) || 0;
+                      return total - bcast - mcast;
+                - type: CHANGE_PER_SECOND
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '500000000'
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Traffic Types'
+            - uuid: 035e2519e5ba4925bc234c6809c82b97
               name: 'Interface Port {#IFNAME}: Outbound Traffic'
               type: DEPENDENT
               key: 'net.if.out[{#IFNAME}]'
@@ -205,12 +708,38 @@ zabbix_export:
                 - type: MULTIPLIER
                   parameters:
                     - '8'
+                - type: IN_RANGE
+                  parameters:
+                    - '0'
+                    - '100000000000'
               master_item:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
                   value: 'Interface Traffic'
-            - uuid: 410c0b2caa5b4eb59d31a904cc05312b
+            - uuid: 4392f4477c7c4270b202302f37e492b4
+              name: 'Interface Port {#IFNAME}: Speed'
+              type: DEPENDENT
+              key: 'net.if.speed[{#IFNAME}]'
+              history: 7d
+              value_type: FLOAT
+              units: bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].speed.first()'
+                - type: MULTIPLIER
+                  parameters:
+                    - '1000000'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: 'Interface Speed'
+            - uuid: 8d3b482888404fafa2f17580514abf91
               name: 'Interface Port {#IFNAME}: Status'
               type: DEPENDENT
               key: 'net.if.status[{#IFNAME}]'
@@ -227,7 +756,25 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: 'Interface Status'
-            - uuid: 14309e45440742f9b2d9732168923028
+            - uuid: ea822c5d1399478a8679862a66104b19
+              name: 'Interface Port {#IFNAME}: STP State'
+              type: DEPENDENT
+              key: 'net.if.stp.state[{#IFNAME}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx==''{#IFNAME}'')].stp_state.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: STP
+            - uuid: 0dd436ba0a434d0cad966e783ee13895
               name: 'Interface Port {#IFNAME}: SFP Part Number'
               type: DEPENDENT
               key: 'sfp.part[{#IFNAME}]'
@@ -245,7 +792,7 @@ zabbix_export:
               tags:
                 - tag: Hardware
                   value: SFP
-            - uuid: 72093e03de07442ca6e2074360e2003d
+            - uuid: d30912721c30448fa9161f989da1ce36
               name: 'Interface Port {#IFNAME}: SFP RX Power'
               type: DEPENDENT
               key: 'sfp.rx[{#IFNAME}]'
@@ -261,7 +808,7 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: SFP
-            - uuid: 9982404e4c27447db480674c0e44cb94
+            - uuid: 78dc99d3c95b450e93c4e2a630c26b4f
               name: 'Interface Port {#IFNAME}: SFP Serial Number'
               type: DEPENDENT
               key: 'sfp.serial[{#IFNAME}]'
@@ -279,7 +826,7 @@ zabbix_export:
               tags:
                 - tag: Hardware
                   value: SFP
-            - uuid: 60e98031d27949ecb344799042294970
+            - uuid: e0ee6426e1034a8f987cb56785033eeb
               name: 'Interface Port {#IFNAME}: SFP Temperature'
               type: DEPENDENT
               key: 'sfp.temp[{#IFNAME}]'
@@ -297,7 +844,7 @@ zabbix_export:
                   value: SFP
                 - tag: Monitoring
                   value: Temperature
-            - uuid: 8e3780373e97424fb870bc706db23a7b
+            - uuid: 710928752cbc414ba051eca63a535d80
               name: 'Interface Port {#IFNAME}: SFP TX Power'
               type: DEPENDENT
               key: 'sfp.tx[{#IFNAME}]'
@@ -313,7 +860,7 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: SFP
-            - uuid: 01e5951dcb1a4877992558c37decaeed
+            - uuid: 7c4acee73406442c8d4162c06e60abad
               name: 'Interface Port {#IFNAME}: SFP Vendor'
               type: DEPENDENT
               key: 'sfp.vendor[{#IFNAME}]'
@@ -331,7 +878,7 @@ zabbix_export:
               tags:
                 - tag: Hardware
                   value: SFP
-            - uuid: 0292723c023f4c698947fca43f03b22b
+            - uuid: 43e6da4dcd2e44488f2f6fe09d2901fb
               name: 'Interface Port {#IFNAME}: SFP Voltage'
               type: DEPENDENT
               key: 'sfp.voltage[{#IFNAME}]'
@@ -348,7 +895,48 @@ zabbix_export:
                 - tag: Monitoring
                   value: SFP
           trigger_prototypes:
-            - uuid: 4894372986474fbda38d227499690f0d
+            - uuid: 49dc80327f3c4db28c4ba01f8bd7943d
+              expression: 'abs(min(/Ubiquiti USW-Pro-Aggregation/net.if.in[{#IFNAME}],5m)) > (last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) * 0.95) and last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) > 0'
+              name: 'Interface Port {#IFNAME}: Critical Inbound Bandwidth Usage (>95%)'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Bandwidth
+            - uuid: c3e9867907b2434da34f971c223c347d
+              expression: 'min(/Ubiquiti USW-Pro-Aggregation/net.if.out[{#IFNAME}],5m) > (last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) * 0.95) and last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) > 0'
+              name: 'Interface Port {#IFNAME}: Critical Outbound Bandwidth Usage (>95%)'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Bandwidth
+            - uuid: 04ec607f2ddc43ac937c44933923f03b
+              expression: 'abs(min(/Ubiquiti USW-Pro-Aggregation/net.if.in[{#IFNAME}],5m)) > (last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) * 0.85) and last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) > 0'
+              name: 'Interface Port {#IFNAME}: High Inbound Bandwidth Usage (>85%)'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Bandwidth
+            - uuid: 720979e28ed343cd92c43314cf3e24e2
+              expression: 'min(/Ubiquiti USW-Pro-Aggregation/net.if.out[{#IFNAME}],5m) > (last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) * 0.85) and last(/Ubiquiti USW-Pro-Aggregation/net.if.speed[{#IFNAME}]) > 0'
+              name: 'Interface Port {#IFNAME}: High Outbound Bandwidth Usage (>85%)'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: Bandwidth
+            - uuid: c9b5902d48a041618e2379997655021a
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.if.status[{#IFNAME}])=1 and (last(/Ubiquiti USW-Pro-Aggregation/net.if.stp.state[{#IFNAME}])="blocking" or last(/Ubiquiti USW-Pro-Aggregation/net.if.stp.state[{#IFNAME}])="discarding")'
+              name: 'Interface Port {#IFNAME}: STP Blocked/Discarding (Port is UP)'
+              priority: WARNING
+              description: 'Port is administratively UP but blocked by Spanning Tree Protocol.'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: STP
+            - uuid: f0dc200bde9f48b1ab2c23711bd65100
               expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.if.status[{#IFNAME}])=0 and length(last(/Ubiquiti USW-Pro-Aggregation/sfp.vendor[{#IFNAME}]))>0'
               recovery_mode: RECOVERY_EXPRESSION
               recovery_expression: 'last(/Ubiquiti USW-Pro-Aggregation/net.if.status[{#IFNAME}])=1 or length(last(/Ubiquiti USW-Pro-Aggregation/sfp.vendor[{#IFNAME}]))=0'
@@ -358,6 +946,123 @@ zabbix_export:
               tags:
                 - tag: Interface
                   value: 'Port {#IFNAME}'
+          graph_prototypes:
+            - uuid: a8aafb1ed29c4edf92aaf62c2a0b09c6
+              name: 'Interface Port {#IFNAME}: Dropped Packets'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.in.dropped[{#IFNAME}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.out.dropped[{#IFNAME}]'
+            - uuid: 7dca4c6b54c642e3bcaf80f97fa0e8ad
+              name: 'Interface Port {#IFNAME}: Inbound Traffic Types'
+              yaxismax: '0'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: PIE
+              show_3d: 'YES'
+              graph_items:
+                - color: FF4000
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.in.broadcast[{#IFNAME}]'
+                - sortorder: '1'
+                  color: FFBF00
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.in.multicast[{#IFNAME}]'
+                - sortorder: '2'
+                  color: 80FF00
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.in.unicast[{#IFNAME}]'
+            - uuid: 1a51482cc5054315aeaa1233f3adbc18
+              name: 'Interface Port {#IFNAME}: Outbound Traffic Types'
+              yaxismax: '0'
+              show_work_period: 'NO'
+              show_triggers: 'NO'
+              type: PIE
+              show_3d: 'YES'
+              graph_items:
+                - color: FF4000
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.out.broadcast[{#IFNAME}]'
+                - sortorder: '1'
+                  color: FFBF00
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.out.multicast[{#IFNAME}]'
+                - sortorder: '2'
+                  color: 00FF00
+                  calc_fnc: MIN
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.out.unicast[{#IFNAME}]'
+            - uuid: 5c7b459e123845e19be102e8967eca9c
+              name: 'Interface Port {#IFNAME}: SFP RX Power'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'sfp.rx[{#IFNAME}]'
+            - uuid: c65fe3f82fef4d72b657d533ca74e20e
+              name: 'Interface Port {#IFNAME}: SFP Temperature'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'sfp.temp[{#IFNAME}]'
+            - uuid: a8a7caf92fac449e90e9b2eb812af917
+              name: 'Interface Port {#IFNAME}: SFP TX Power'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'sfp.tx[{#IFNAME}]'
+            - uuid: 8b73f3dfcede4faaaac95653c52a27be
+              name: 'Interface Port {#IFNAME}: SFP Voltage'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'sfp.voltage[{#IFNAME}]'
+            - uuid: 9e1e069afe7d473aa829e96da4849b34
+              name: 'Interface Port {#IFNAME}: Traffic'
+              yaxismax: '0'
+              graph_items:
+                - color: 1A7C11
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.in[{#IFNAME}]'
+                - sortorder: '1'
+                  color: '274482'
+                  calc_fnc: ALL
+                  item:
+                    host: 'Ubiquiti USW-Pro-Aggregation'
+                    key: 'net.if.out[{#IFNAME}]'
           master_item:
             key: 'ssh.run[mca_dump]'
           lld_macro_paths:
@@ -369,6 +1074,56 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.port_table
+        - uuid: cd15e0570aea498c89cbdd35e7a526ff
+          name: 'Device Tracking Discovery (ARP/IP)'
+          type: DEPENDENT
+          key: net.tracking.discovery
+          item_prototypes:
+            - uuid: b218dae5467542e4b0f08c19741a7ee6
+              name: 'Device on Port {#PORT_IDX}: {#IP_ADDR}'
+              type: DEPENDENT
+              key: 'net.tracking.device[{#PORT_IDX},{#IP_ADDR},{#MAC_ADDR}]'
+              history: 7d
+              value_type: CHAR
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.port_table[?(@.port_idx=={#PORT_IDX})].mac_table[?(@.ip==''{#IP_ADDR}'' && @.mac==''{#MAC_ADDR}'')].mac.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'ssh.run[mca_dump]'
+              tags:
+                - tag: Monitoring
+                  value: ARP
+                - tag: Monitoring
+                  value: 'Device Tracking'
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  var output = [];
+                  if (data.port_table) {
+                      data.port_table.forEach(function(port) {
+                          if (port.mac_table) {
+                              port.mac_table.forEach(function(entry) {
+                                  if (entry.ip && entry.ip !== '0.0.0.0') {
+                                      output.push({
+                                          '{#PORT_IDX}': port.port_idx,
+                                          '{#IP_ADDR}': entry.ip,
+                                          '{#MAC_ADDR}': entry.mac,
+                                          '{#VLAN_ID}': entry.vlan
+                                      });
+                                  }
+                              });
+                          }
+                      });
+                  }
+                  return JSON.stringify(output);
       valuemaps:
         - uuid: d6e45c72e65a45ccb2820c87efeb1b0a
           name: 'Interface Status'
@@ -386,3 +1141,42 @@ zabbix_export:
               newvalue: Up
             - value: '0'
               newvalue: Down
+  graphs:
+    - uuid: d350e63e2ee240f8a986452544d931c4
+      name: 'CPU Usage'
+      yaxismax: '0'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Ubiquiti USW-Pro-Aggregation'
+            key: system.cpu.util
+    - uuid: 755a4fbac5be4ea4ab45a9c3d3c4bfbf
+      name: 'Fan Usage'
+      yaxismax: '0'
+      graph_items:
+        - drawtype: FILLED_REGION
+          color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Ubiquiti USW-Pro-Aggregation'
+            key: sensor.fan.level
+    - uuid: 4f0414f7085542ceb0f33a3c4670766a
+      name: 'Memory Usage'
+      yaxismax: '0'
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Ubiquiti USW-Pro-Aggregation'
+            key: vm.memory.util
+    - uuid: 061f83fbce4c4b54acabe50d86fceb80
+      name: 'System Temperature'
+      yaxismax: '0'
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Ubiquiti USW-Pro-Aggregation'
+            key: sensor.temp.system
