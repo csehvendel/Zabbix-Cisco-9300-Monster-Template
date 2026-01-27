@@ -324,6 +324,46 @@ zabbix_export:
           tags:
             - tag: Hardware
               value: Chassis
+        - uuid: 09e5cf7d3b7243d697a53bd11721d30c
+          name: 'System: MAC Address Table Size'
+          type: DEPENDENT
+          key: system.mac.table.size
+          history: 7d
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total_mac_in_used
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: 'ssh.run[mca_dump]'
+          tags:
+            - tag: Monitoring
+              value: ARP
+          triggers:
+            - uuid: 862669e3b6c648829ce52248260bca3b
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/system.mac.table.size) > 14400'
+              name: 'MAC Address Table is nearly full (>90%)'
+              priority: HIGH
+              description: 'The switch MAC address table is over 90% full (Threshold: 14400 / 16000). A full MAC table causes the switch to act like a hub (flooding packets), reducing performance and security.'
+              manual_close: 'YES'
+              tags:
+                - tag: Monitoring
+                  value: ARP
+            - uuid: 2b858455df9d4b3a8a6935913fda6c96
+              expression: 'last(/Ubiquiti USW-Pro-Aggregation/system.mac.table.size) > 12800'
+              name: 'MAC Address Table usage is high (>80%)'
+              priority: WARNING
+              description: 'The switch MAC address table is over 80% full (Threshold: 12800 / 16000).'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'MAC Address Table is nearly full (>90%)'
+                  expression: 'last(/Ubiquiti USW-Pro-Aggregation/system.mac.table.size) > 14400'
+              tags:
+                - tag: Monitoring
+                  value: ARP
         - uuid: be63ca7276854735ba0f96539669fb8c
           name: 'System: Hostname (SNMP)'
           type: SNMP_AGENT
@@ -481,7 +521,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: ef2a2d4047494ff6a57ee841b0ba3a0d
               name: 'Interface Port {#IFNAME}: Inbound Dropped Packets'
               type: DEPENDENT
@@ -540,7 +580,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: e7ad1081d6644f31be28ac3fbe19f437
               name: 'Interface Port {#IFNAME}: Inbound Unicast Packets'
               type: DEPENDENT
@@ -568,7 +608,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: e76984592bcf4edfb3df4ca906e72595
               name: 'Interface Port {#IFNAME}: Inbound Traffic'
               type: DEPENDENT
@@ -612,7 +652,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: 20d8df302970423087321e2e20967734
               name: 'Interface Port {#IFNAME}: Outbound Dropped Packets'
               type: DEPENDENT
@@ -665,7 +705,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: 7dcbe3027e1c49be986e16d1f7896fd7
               name: 'Interface Port {#IFNAME}: Outbound Unicast Packets'
               type: DEPENDENT
@@ -693,7 +733,7 @@ zabbix_export:
                 key: 'ssh.run[mca_dump]'
               tags:
                 - tag: Monitoring
-                  value: 'Traffic Types'
+                  value: 'Interface Traffic Types'
             - uuid: 035e2519e5ba4925bc234c6809c82b97
               name: 'Interface Port {#IFNAME}: Outbound Traffic'
               type: DEPENDENT
@@ -1162,6 +1202,15 @@ zabbix_export:
           item:
             host: 'Ubiquiti USW-Pro-Aggregation'
             key: sensor.fan.level
+    - uuid: f822e413da2b4a13b9133674d1603934
+      name: 'Mac Address Table Size'
+      yaxismax: '0'
+      graph_items:
+        - color: 1A7C11
+          calc_fnc: ALL
+          item:
+            host: 'Ubiquiti USW-Pro-Aggregation'
+            key: system.mac.table.size
     - uuid: 4f0414f7085542ceb0f33a3c4670766a
       name: 'Memory Usage'
       yaxismax: '0'
