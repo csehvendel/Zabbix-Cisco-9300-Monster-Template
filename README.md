@@ -165,9 +165,12 @@ wr
 
 | Type | Macro Name | Value (Example) | Description |
 | :--- | :--- | :--- | :--- |
+| **Generic** | `{$SNMP_COMMUNITY}` | `zabbix-read` | The SNMP community string configured on the switch. |
 | **Ubiquiti** | `{$SSH_UNIFI_USER}` | `ubnt_admin` | SSH Username set in the UniFi Controller. |
 | **Ubiquiti** | `{$SSH_UNIFI_PASSWORD}` | `SecretPass123` | SSH Password set in the UniFi Controller. |
-| **Cisco** | `{$SNMP_COMMUNITY}` | `zabbix-read` | The SNMP community string configured on the switch. |
+| **Cisco** | `{$SSH_USER}` | `cisco_ro_user` | SSH Username. |
+| **Cisco** | `{$SSH_PASSWORD}` | `SecretPass123` | SSH Password. |
+
 
 6. Click **Add**.
 7. Wait a few minutes for **Discovery** to run. It will automatically find ports, inventory data, and active IP SLAs. ☕
