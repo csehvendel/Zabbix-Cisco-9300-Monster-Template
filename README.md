@@ -17,6 +17,7 @@ The repository currently contains optimized templates for the following hardware
 *Direct system querying (`mca-dump`) for deep diagnostics.*
 - **USW-Aggregation** (Switch Aggregation)
 - **USW-Pro-Aggregation** (Switch Pro Aggregation)
+- **USW-Pro-48-POE**
 
 ### 🟢 Cisco Catalyst Series
 *Deep SNMP monitoring with IP SLA and Stack support.*
