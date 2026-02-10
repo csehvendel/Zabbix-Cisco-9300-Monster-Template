@@ -1,10 +1,10 @@
 zabbix_export:
   version: '7.4'
   template_groups:
-    - uuid: dc07d96281734d23bd3281ce548b97eb
+    - uuid: 441c0cb65c274cc9aca624c11eaf6f5c
       name: 'Templates/Network devices'
   host_groups:
-    - uuid: 7f1ba80763fa45b59c3a634ff0bb4633
+    - uuid: dbfe54f045f0485a94f22c6bcb22a546
       name: All
   templates:
     - uuid: 4b29f9e138a54424912b65c7924d08e1
@@ -750,7 +750,7 @@ zabbix_export:
                   value: 'Power Supply'
               trigger_prototypes:
                 - uuid: b3c4d5e6f7a84411a123817865245853
-                  expression: 'last(/Cisco Catalyst 9300 Switch/ciscoEnvMonSupplyState[{#SNMPINDEX}])<>1 and last(/Cisco Catalyst 9300 Switch/ciscoEnvMonSupplyState[{#SNMPINDEX}])<>5'
+                  expression: 'last(/Cisco Catalyst 9300 Switch/ciscoEnvMonSupplyState[{#SNMPINDEX}])<>1 and last(/Cisco Catalyst 9300 Switch/ciscoEnvMonSupplyState[{#SNMPINDEX}])<>5 and last(/Cisco Catalyst 9300 Switch/ciscoEnvMonSupplyState[{#SNMPINDEX}])<>4'
                   name: 'PSU Error: {#PSU_NAME} is NOT OK'
                   priority: DISASTER
         - uuid: '32658824144445588331520650530630'
@@ -847,11 +847,13 @@ zabbix_export:
           name: 'Monitoring: IPDT'
           type: DEPENDENT
           key: cisco.ipdt.discovery
+          lifetime_type: DELETE_IMMEDIATELY
           item_prototypes:
             - uuid: 5cd81a8eaba44887bf6ec634e3dba06f
               name: 'Interface {#IFNAME}: Neighbor IP(s)'
               type: DEPENDENT
               key: 'cisco.ipdt.ip[{#IFNAME}]'
+              history: '0'
               value_type: TEXT
               preprocessing:
                 - type: JAVASCRIPT
@@ -1911,6 +1913,14 @@ zabbix_export:
               tags:
                 - tag: Monitoring
                   value: 'Interface Errors'
+              trigger_prototypes:
+                - uuid: 1122334455664777888899aabbccdde0
+                  expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.in.errors[{#IFNAME}],5m)>0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.in.errors[{#IFNAME}],5m)=0'
+                  name: 'Interface {#IFNAME}: High inbound error rate'
+                  priority: WARNING
+                  description: 'Detects outbound errors on the interface.'
             - uuid: abcdef0123454678890abcdef0123456
               name: 'Interface {#IFNAME}: FCS Errors'
               type: SNMP_AGENT
@@ -1933,50 +1943,6 @@ zabbix_export:
                   name: 'Interface {#IFNAME}: FCS Errors detected'
                   priority: WARNING
                   description: 'Detects Frame Check Sequence errors (physical layer issues).'
-            - uuid: 1234567890ab4cde8f0123456789abcd
-              name: 'Interface {#IFNAME}: Outbound discards'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.2.2.1.19.{#SNMPINDEX}'
-              key: 'net.if.out.discards[{#IFNAME}]'
-              delay: 5m
-              history: 7d
-              value_type: FLOAT
-              units: pkt/s
-              preprocessing:
-                - type: CHANGE_PER_SECOND
-              tags:
-                - tag: Monitoring
-                  value: 'Interface Discards'
-              trigger_prototypes:
-                - uuid: edcba098765443218fedcba098765432
-                  expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.out.discards[{#IFNAME}],5m)>0'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.out.discards[{#IFNAME}],5m)=0'
-                  name: 'Interface {#IFNAME}: High outbound discard rate'
-                  priority: WARNING
-                  description: 'Detects outbound discards (dropped packets).'
-            - uuid: 9a8b7c6d5e4f4321876543210fedcba9
-              name: 'Interface {#IFNAME}: Outbound errors'
-              type: SNMP_AGENT
-              snmp_oid: '1.3.6.1.2.1.2.2.1.20.{#SNMPINDEX}'
-              key: 'net.if.out.errors[{#IFNAME}]'
-              delay: 5m
-              history: 7d
-              value_type: FLOAT
-              units: pkt/s
-              preprocessing:
-                - type: CHANGE_PER_SECOND
-              tags:
-                - tag: Monitoring
-                  value: 'Interface Errors'
-              trigger_prototypes:
-                - uuid: 1122334455664777888899aabbccdde0
-                  expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.out.errors[{#IFNAME}],5m)>0'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'avg(/Cisco Catalyst 9300 Switch/net.if.out.errors[{#IFNAME}],5m)=0'
-                  name: 'Interface {#IFNAME}: High outbound error rate'
-                  priority: WARNING
-                  description: 'Detects outbound errors on the interface.'
           graph_prototypes:
             - uuid: 9d5acefbc85e493ea56ec2400d201475
               name: 'Interface {#IFNAME} Discards'
@@ -1987,12 +1953,6 @@ zabbix_export:
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.in.discards[{#IFNAME}]'
-                - sortorder: '1'
-                  color: FF5722
-                  calc_fnc: ALL
-                  item:
-                    host: 'Cisco Catalyst 9300 Switch'
-                    key: 'net.if.out.discards[{#IFNAME}]'
             - uuid: 68a770615cb14c8d8c9c2060b416f044
               name: 'Interface {#IFNAME} Errors'
               yaxismax: '0'
@@ -2002,12 +1962,6 @@ zabbix_export:
                   item:
                     host: 'Cisco Catalyst 9300 Switch'
                     key: 'net.if.in.errors[{#IFNAME}]'
-                - sortorder: '1'
-                  color: FF7043
-                  calc_fnc: ALL
-                  item:
-                    host: 'Cisco Catalyst 9300 Switch'
-                    key: 'net.if.out.errors[{#IFNAME}]'
             - uuid: bec1d319c57a4485b3d9ff7e0b575878
               name: 'Interface {#IFNAME} FCS Errors'
               yaxismax: '0'
