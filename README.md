@@ -243,5 +243,5 @@ wr
 ---
 
 ## 📜 License
-These templates are free to use, modify, and distribute. If you find them useful, please star the repo AND/OR support the project via [![Donate](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/paypalme/csehvendel) because a lot of coffee is wasted while grinding.
+These templates are free to use, modify, and distribute. If you find them useful, please star the repo AND/OR support the project via [![Donate via Revolut](https://img.shields.io/badge/Support-Revolut-0075EB?style=for-the-badge&logo=revolut&logoColor=white)](https://revolut.me/vendel_c) because a lot of coffee is wasted while grinding.
 ! ⭐
